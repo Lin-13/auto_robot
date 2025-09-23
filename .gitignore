@@ -1,0 +1,6 @@
+build/
+install/
+.vscode/
+.idea/
+log/
+asserts/
