@@ -12,13 +12,15 @@ public:
   using Ptr = std::shared_ptr<AuboController>;
   AuboController(const char *host_name, int port, const char *user_name,
                  const char *password, std::string name = "aubo_controller",
-                 ControllerConfig config = {k_p : 10});
+                 ControllerConfig config = {.k_p = 10});
   int Initialize(std::chrono::milliseconds timer_period = 33ms) override;
   virtual RobotJointState getJointState() override;
-  virtual int setTarget(RobotJointState target_joint_state);
+  virtual int setTarget(RobotJointState target_joint_state) override;
   int Logout();
   virtual ~AuboController();
   ServiceInterface getAuboServiceInterface() { return robot_interface_; }
+
+  int enable_log_ = 0;
 
 private:
   int timer_cb() override;

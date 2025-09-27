@@ -23,10 +23,10 @@
 // 测试时请确保与机器人的连接正常
 void testAuboRobot() {
   // auto aubo_robot = auboRobotLeft();
-  auto aubo_robot = auboRobotRight(1s, ControllerConfig({k_p : 1, k_v : 0.1}));
+  auto aubo_robot = auboRobotLeft(1s, ControllerConfig({.k_p = 1, .k_v = 0.1}));
   // aubo_robot.start(1s);
   auto start = std::chrono::steady_clock::now();
-  auto pose = aubo_robot.currentPose();
+  auto pose = aubo_robot->currentPose();
   auto end = std::chrono::steady_clock::now();
   std::cout << "connect delay: "
             << std::chrono::duration_cast<std::chrono::microseconds>(end -
@@ -35,7 +35,7 @@ void testAuboRobot() {
             << " us" << std::endl; // 347us
 
   std::cout << "joint: "
-            << aubo_robot.currentJointState().transpose() * 180 / M_PI
+            << aubo_robot->currentJointState().transpose() * 180 / M_PI
             << std::endl;
   std::cout << "pose: \n" << pose << std::endl;
   // std::cout << "rpy pose: \n"
@@ -52,19 +52,19 @@ void testAuboRobot() {
   pose_trajectory.emplace_back(2, T1);
   pose_trajectory.emplace_back(4, T2);
   pose_trajectory.emplace_back(6, Eigen::Matrix4d::Identity());
-  int ret = aubo_robot.start(20ms);
-  ret = aubo_robot.MovePoseRelative(pose_trajectory, 20ms, 0);
+  int ret = aubo_robot->start(20ms);
+  ret = aubo_robot->MovePoseRelative(pose_trajectory, 20ms, 0);
   if (ret != 0) {
     std::cout << "Trajectory Move failed" << std::endl;
     return;
   }
   std::this_thread::sleep_for(8s);
-  aubo_robot.stop();
-  // auto result = aubo_robot.controller()->getJointState();
+  aubo_robot->stop();
+  // auto result = aubo_robot->controller()->getJointState();
   std::cout << "Last JointState (deg): "
-            << aubo_robot.currentJointState().transpose() * 180 / M_PI
+            << aubo_robot->currentJointState().transpose() * 180 / M_PI
             << std::endl;
-  std::cout << "Last Pose: \n" << aubo_robot.currentPose() << std::endl;
+  std::cout << "Last Pose: \n" << aubo_robot->currentPose() << std::endl;
   // 有概率报错
   // *** buffer overflow detected ***: terminated
   return;

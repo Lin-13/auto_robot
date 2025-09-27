@@ -5,8 +5,8 @@
 #include "utils/matrix_utils.h"
 #include <numbers>
 
-static const char *SERVER_HOST_left = "192.168.1.131";
-static const char *SERVER_HOST_right = "192.168.1.101";
+static const char *SERVER_HOST_left = "192.168.1.101";
+static const char *SERVER_HOST_right = "192.168.1.131";
 static const int SERVER_PORT_left = 8899;
 static const int SERVER_PORT_right = 8899;
 RobotTopology::Ptr auboRobotTopology() {
@@ -59,27 +59,29 @@ RobotTopology::Ptr auboRobotTopology() {
   aubo->setToolFrame("tool0", tool_frame);
   return aubo;
 }
-Robot auboRobotLeft(std::chrono::milliseconds timer_period,
-                    ControllerConfig config) {
+std::unique_ptr<Robot> auboRobotLeft(std::chrono::milliseconds timer_period,
+                                     ControllerConfig config) {
   auto robot_topology = auboRobotTopology();
   auto robot_controller = std::make_shared<AuboController>(
       SERVER_HOST_left, SERVER_PORT_left, "aubo", "1", "left_aubo", config);
   int ret = robot_controller->Initialize(timer_period);
   if (ret != 0) {
-    std::cerr << "Failed to initialize left robot controller" << std::endl;
-    return Robot(nullptr, robot_topology);
+    std::cerr << "auboRobotLeft : Failed to initialize left robot controller"
+              << std::endl;
+    return std::make_unique<Robot>(nullptr, robot_topology);
   }
-  return Robot(robot_controller, robot_topology);
+  return std::make_unique<Robot>(robot_controller, robot_topology);
 }
-Robot auboRobotRight(std::chrono::milliseconds timer_period,
-                     ControllerConfig config) {
+std::unique_ptr<Robot> auboRobotRight(std::chrono::milliseconds timer_period,
+                                      ControllerConfig config) {
   auto robot_topology = auboRobotTopology();
   auto robot_controller = std::make_shared<AuboController>(
       SERVER_HOST_right, SERVER_PORT_right, "aubo", "1", "right_aubo", config);
   int ret = robot_controller->Initialize(timer_period);
   if (ret != 0) {
-    std::cerr << "Failed to initialize right robot controller" << std::endl;
-    return Robot(nullptr, robot_topology);
+    std::cerr << "auboRobotRight : Failed to initialize right robot controller"
+              << std::endl;
+    return std::make_unique<Robot>(nullptr, robot_topology);
   }
-  return Robot(robot_controller, robot_topology);
+  return std::make_unique<Robot>(robot_controller, robot_topology);
 }

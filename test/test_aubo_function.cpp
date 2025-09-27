@@ -71,7 +71,7 @@ int auboi16_robot_topology() {
   Eigen::Vector3d rpy1;
   pose.M.GetRPY(rpy1(0), rpy1(1), rpy1(2));
   fmt::print("pose:rpy:{},xyz:{}\n", rpy1, pose.p);
-  pose.M;
+  // pose.M;
   // fmt::println("pose:\nRPY:{}\nXYZ:{}",);
   ik_solver.CartToJnt(joint, pose, joint);
   // joint(0) = 1;
@@ -119,7 +119,7 @@ int auboi16_robot_topology_dh() {
   Eigen::Vector3d rpy1;
   pose.M.GetRPY(rpy1(0), rpy1(1), rpy1(2));
   fmt::print("pose:rpy:{},xyz:{}\n", rpy1 / pi * 180, pose.p);
-  pose.M;
+  // pose.M;
   pose.M = KDL::Rotation::RPY(91.976929 / 180 * pi, 16.975527 / 180 * pi,
                               -18.022593 / 180 * pi);
   pose.p[0] = 0.005682;

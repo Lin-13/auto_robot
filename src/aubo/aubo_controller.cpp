@@ -11,9 +11,9 @@ AuboController::AuboController(const char *host_name, int port,
   auto ret_left =
       robot_interface_.robotServiceLogin(host_name, port, user_name, password);
   if (ret_left == aubo::InterfaceCallSuccCode) {
-    std::cout << "arm login successful." << std::endl;
+    std::cout << "Aubo Robot login successful." << std::endl;
   } else {
-    std::cerr << "arm login failed." << std::endl;
+    std::cerr << "Aubo Robot login failed." << std::endl;
   }
 }
 int AuboController::Initialize(std::chrono::milliseconds timer_period) {
@@ -23,17 +23,17 @@ int AuboController::Initialize(std::chrono::milliseconds timer_period) {
   aubo::ToolDynamicsParam toolDynamicsParam;
   memset(&toolDynamicsParam, 0, sizeof(toolDynamicsParam));
 
-  auto ret_left = robot_interface_.rootServiceRobotStartup(
+  auto ret = robot_interface_.rootServiceRobotStartup(
       toolDynamicsParam /**Tool dynamics parameter**/, 6 /*Collision level*/,
       true /*Whether to allow reading poses defaults to true*/,
       true,  /*Leave the default to true */
       1000,  /*Leave the default to 1000 */
       result /*Robot arm initialization*/
   );
-  if (ret_left == aubo::InterfaceCallSuccCode) {
-    std::cout << "Robot arm initialization succeeded." << std::endl;
+  if (ret == aubo::InterfaceCallSuccCode) {
+    std::cout << "Aubo Robot initialization succeeded." << std::endl;
   } else {
-    std::cerr << "Robot arm initialization failed." << std::endl;
+    std::cerr << "Aubo Robot initialization failed." << std::endl;
     return -1;
   }
 
@@ -80,7 +80,7 @@ int AuboController::Initialize(std::chrono::milliseconds timer_period) {
   }
   // 允许事实控制
   robot_interface_.robotServiceSetRealTimeJointStatusPush(true);
-  int ret = RobotController::Initialize(timer_period);
+  ret = RobotController::Initialize(timer_period);
   return ret;
 }
 RobotController::RobotJointState AuboController::getJointState() {
@@ -102,8 +102,10 @@ RobotController::RobotJointState AuboController::getJointState() {
   for (int i = 0; i < num_joints_; i++) {
     joint_state.joint_state(i) = joint_pos[i];
   }
-  std::cout << "aubo " << name_ << ": get joint state "
-            << joint_state.joint_state.transpose() << std::endl;
+  if (enable_log_ == 1) {
+    std::cout << "aubo " << name_ << ": get joint state "
+              << joint_state.joint_state.transpose() << std::endl;
+  }
   return joint_state;
 }
 int AuboController::setJointState(
@@ -120,41 +122,53 @@ int AuboController::setJointState(
   // false);
   robot_interface_.robotServiceFollowModeJointMove(
       joint_state.joint_state.data());
-  std::cout << "aubo " << name_ << ": set joint state "
-            << joint_state.joint_state.transpose() << std::endl;
+  if (enable_log_ == 1) {
+    std::cout << "aubo " << name_ << ": set joint state "
+              << joint_state.joint_state.transpose() << std::endl;
+  }
   return 0;
 }
 int AuboController::setTarget(RobotJointState target_joint_state) {
-  std::cout << "aubo " << name_ << ": set target "
-            << target_joint_state.joint_state.transpose() << std::endl;
+  if (enable_log_ == 1) {
+    std::cout << "aubo " << name_ << ": set target "
+              << target_joint_state.joint_state.transpose() << std::endl;
+  }
   RobotController::setTarget(target_joint_state);
   return 0;
 }
 int AuboController::Logout() {
-  std::cout << "Aubo logout." << std::endl;
+  if (enable_log_ == 1) {
+    std::cout << "Aubo Robot logout." << std::endl;
+  }
   robot_interface_.robotServiceLogout();
   return 0;
 }
 int AuboController::timer_cb() {
   static auto start = std::chrono::steady_clock::now();
   auto t_start = std::chrono::steady_clock::now();
-  std::cout << "aubo " << name_ << ": timer_cb at "
-            << std::chrono::duration_cast<std::chrono::duration<double>>(
-                   t_start - start)
-                   .count()
-            << " s" << std::endl;
+  if (enable_log_ == 1) {
+    std::cout << "aubo " << name_ << ": timer_cb at "
+              << std::chrono::duration_cast<std::chrono::duration<double>>(
+                     t_start - start)
+                     .count()
+              << " s" << std::endl;
+  }
   int ret = RobotController::timer_cb();
   if (ret != 0) {
-    std::cerr << "aubo " << name_ << ": timer_cb warning, ret: " << ret
-              << std::endl;
+    if (enable_log_ == 1) {
+      std::cerr << "aubo " << name_ << ": timer_cb warning, ret: " << ret
+                << std::endl;
+    }
     return ret;
   }
   auto t_end = std::chrono::steady_clock::now();
-  std::cout << "aubo " << name_ << ": timer_cb time run "
-            << std::chrono::duration_cast<std::chrono::duration<double>>(
-                   t_end - t_start)
-                   .count()
-            << " s" << std::endl;
+  if (enable_log_ == 1) {
+    std::cout << "aubo " << name_ << ": timer_cb time run "
+              << std::chrono::duration_cast<std::chrono::duration<double>>(
+                     t_end - t_start)
+                     .count()
+              << " s" << std::endl;
+  }
   return ret;
 }
 AuboController::~AuboController() { Logout(); }

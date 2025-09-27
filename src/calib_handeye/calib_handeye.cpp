@@ -1,3 +1,4 @@
+#include "aubo/aubo_robot.h"
 #include "robot_interface/robot.h"
 #include "utils/matrix_utils.h"
 #include "utils/opencv_utils.h"
@@ -11,81 +12,43 @@
 #include <opencv2/aruco/charuco.hpp>
 #include <opencv2/opencv.hpp>
 #include <vector>
-// 假设的机器人控制函数
-bool getRobotPose(cv::Mat &R_base2gripper, cv::Mat &t_base2gripper) {
-  // 实现从机器人控制器获取位姿
-  t_base2gripper = (cv::Mat_<double>(3, 1) << 0.1, 0.2, 0.3);
-  R_base2gripper = (cv::Mat_<double>(3, 3) << 1, 0, 0, 0, 1, 0, 0, 0, 1);
-  return true;
-}
 
-/**
- * @brief 生成棋盘标定版
- *
- * @param width
- * @param height
- * @param offset_id
- * @return cv::Ptr<cv::aruco::CharucoBoard>
- */
-cv::Ptr<cv::aruco::CharucoBoard>
-aruco_board_generate(int width = 5, int height = 7, int offset_id = 10) {
-  auto dict = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
-  double squre_length = 0.02;   // 棋盘格边长，单位：米
-  double marker_length = 0.015; // 标记边长，单位：米
-  int id_cnt = 0;
-  for (int i = 0; i < width; i++) {
-    for (int j = 0; j < height; j++) {
-      if (i % 2 != j % 2) {
-        id_cnt++;
-      }
-    }
-  }
-  int id = offset_id;
-  // cv::Mat ids = cv::Mat::zeros(cv::Size(id_cnt,1), CV_32S);
-  // std::for_each(ids.begin<int>(), ids.end<int>(), [&id](int &n) { n += id++;
-  // });
-  id = offset_id;
-  std::vector<int> ids_vec(id_cnt);
-  std::for_each(ids_vec.begin(), ids_vec.end(), [&id](int &n) { n = id++; });
-  auto board = std::make_shared<cv::aruco::CharucoBoard>(
-      cv::Size(width, height), squre_length, marker_length, dict, ids_vec);
-  double ratio = marker_length / squre_length;
-
-  cv::Mat boardImage;
-  cv::Size img_size((width - (1 - ratio)) * 400, (height - (1 - ratio)) * 400);
-  // cv::Size img_size(1000, 1440);
-
-  board->generateImage(img_size, boardImage, 100, 1);
-  std::string filename = fmt::format("charuco/charuco_board_{}x{}_id{}.png",
-                                     width, height, offset_id);
-  int ret = cv::imwrite(filename, boardImage);
-  fmt::print("Aruco image size: {}x{} save to {} {}\n", img_size.width,
-             img_size.height, filename, ret ? "success" : "failed");
-  return board;
-}
 int main() {
-  cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_ERROR);
+  fmt::print("Calib HandEye\nOpenCV Version: {}\n", cv::getVersionString());
+  cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_SILENT);
+
+  // start up aubo robot
+  std::unique_ptr<Robot> robot = auboRobotLeft();
+  // 尝试启动机器人
+  try {
+    if (robot->start(30ms) != 0) {
+      fmt::print("Aubo robot start failed.\n");
+    }
+  } catch (const std::exception &e) {
+    fmt::print("Aubo robot Error: {}\n", e.what());
+  }
 
   auto dictionary = std::make_shared<cv::aruco::Dictionary>(
       cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250));
   // 1. 创建 ChArUco 板
-  auto board = aruco_board_generate(3, 3, 60);
+  auto board = aruco_board_generate(3, 3, 0.0373, 0.0280, 60,
+                                    "charuco/charuco_board_3x3_id60.png");
 
   cv::Mat cameraMatrix, distCoeffs;
   cameraMatrix = (cv::Mat_<double>(3, 3) << 600, 0, 320, 0, 600, 240, 0, 0, 1);
   distCoeffs = (cv::Mat_<double>(5, 1) << 0, 0, 0, 0, 0);
+  // 从基座坐标系到末端坐标系、从相机坐标系到目标坐标系的转换
   std::vector<cv::Mat> R_base2gripper_list, t_base2gripper_list;
-  std::vector<cv::Mat> R_target2cam_list, t_target2cam_list;
+  std::vector<cv::Mat> R_cam2target_list, t_cam2target_list;
+  std::vector<Eigen::Matrix4d> T_base2gripper_list, T_cam2target_list;
   rs2::pipeline pipe;
   pipe.start();
   rs2::frameset frames;
-  int num_poses = 30;
-  cv::namedWindow("Aruco", cv::WINDOW_NORMAL);
+  int num_poses = 10;
+  cv::namedWindow("Aruco", cv::WINDOW_AUTOSIZE);
   for (int i = 0; i < num_poses; ++i) {
     fmt::print("采集第 {} 个位姿\n", i + 1);
     cv::Mat R_base2gripper, t_base2gripper;
-    if (!getRobotPose(R_base2gripper, t_base2gripper))
-      continue;
     // 检测 ChArUco 板
     cv::Mat image, depth;
     std::vector<int> markerIds;
@@ -121,7 +84,31 @@ int main() {
 
       // if (markerIds.empty()) continue;
     }
-
+    // 捕获机器人位姿
+    Eigen::Matrix4d T_base2gripper = Eigen::Matrix4d::Identity();
+    try {
+      T_base2gripper = robot->currentPose();
+      T_base2gripper_list.push_back(T_base2gripper);
+      R_base2gripper_list.push_back(
+          eigenXdToCvMat(T_base2gripper.block<3, 3>(0, 0)));
+      t_base2gripper_list.push_back(
+          eigenXdToCvMat(T_base2gripper.block<3, 1>(0, 3)));
+    } catch (const std::exception &e) {
+      fmt::print("Aubo robot Error: {}, use Identity Matrix\n", e.what());
+      Eigen::Matrix4d I = Eigen::Matrix4d::Identity();
+      T_base2gripper_list.push_back(I);
+      R_base2gripper_list.push_back(eigenXdToCvMat(I.block<3, 3>(0, 0)));
+      t_base2gripper_list.push_back(eigenXdToCvMat(I.block<3, 1>(0, 3)));
+    }
+    int ret = writeEigenXdToFile(
+        fmt::format("charuco/data/base2gripper_{}.txt", i), T_base2gripper);
+    fmt::print("base2gripper_{}.txt save {}\n", i,
+               ret == 0 ? "success" : "failed");
+    std::cout << "T_base2gripper:\n" << T_base2gripper << std::endl;
+    std::cout << "  RPY: "
+              << RotToRPY(T_base2gripper.block<3, 3>(0, 0)).transpose() * 180 /
+                     M_PI
+              << std::endl;
     // 插值角点
     std::vector<cv::Point2f> charucoCorners;
     std::vector<int> charucoIds;
@@ -137,32 +124,56 @@ int main() {
                                                      board, cameraMatrix,
                                                      distCoeffs, rvec, tvec);
 
-    // if (!valid) continue;
-    fmt::print("valid: {}\n", valid);
+    if (!valid) {
+      continue;
+    }
+    fmt::print("Charuco found: {}\n", valid);
     cv::waitKey(500);
     // 转换为旋转矩阵并存储
-    cv::Mat R_target2cam;
-    cv::Rodrigues(rvec, R_target2cam);
-    Eigen::MatrixXd R = cvMatToEigenXd(R_target2cam);
+    cv::Mat R_cam2target;
+    cv::Rodrigues(rvec, R_cam2target);
+    Eigen::MatrixXd R = cvMatToEigenXd(R_cam2target);
     Eigen::MatrixXd t = cvMatToEigenXd(tvec);
-    fmt::print("T_target2cam:\n{}\n", HomoMatrix(R, t));
+    fmt::print("T_cam2target:\n{}\n", HomoMatrix(R, t));
     KDL::Frame T = eigenXdToKdlFrame(HomoMatrix(R, t));
-    Eigen::Vector3d rpy;
-    T.M.GetRPY(rpy(0), rpy(1), rpy(2));
-    fmt::print("Aruco RPY: {},XYZ:{}\n", rpy, T.p);
+    // Eigen::Vector3d rpy;
+    // T.M.GetRPY(rpy(0), rpy(1), rpy(2));
+    // fmt::print("Aruco RPY: {}\n", rpy.transpose() * 180 / M_PI);
+    std::cout << " RPY: " << RotToRPY(R).transpose() * 180 / M_PI << std::endl;
     cv::imwrite(fmt::format("charuco/data/charuco_color_{}.png", i), image);
     cv::imwrite(fmt::format("charuco/data/charuco_depth_{}.png", i), depth);
-    writeEigenXdToFile(fmt::format("charuco/data/target2cam_{}.txt", i),
-                       HomoMatrix(R, t));
+    ret = writeEigenXdToFile(fmt::format("charuco/data/cam2target_{}.txt", i),
+                             HomoMatrix(R, t));
+    fmt::print("cam2target_{}.txt save {}\n", i,
+               ret == 0 ? "success" : "failed");
 
-    // fmt::print("t_target2cam:\n{}\n", t);
-    R_base2gripper_list.push_back(R_base2gripper.clone());
-    t_base2gripper_list.push_back(t_base2gripper.clone());
-    R_target2cam_list.push_back(R_target2cam.clone());
-    t_target2cam_list.push_back(tvec.clone());
+    // 用于opencv自身的手眼标定实现
+    T_cam2target_list.push_back(HomoMatrix(R, t));
+    R_cam2target_list.push_back(R_cam2target.clone());
+    t_cam2target_list.push_back(tvec.clone());
   }
-
-  // // 4. 手眼标定
+  // 4. 标定手眼变换
+  auto T_et_adjust = [](Eigen::Matrix3d &R) {
+    adjustRotateInplace(R, -1, 0, -1);
+  };
+  // 棋盘z轴向内
+  auto T_bc_adjust = [](Eigen::Matrix3d &R) {
+    adjustRotateInplace(R, 1, 0, 1);
+  };
+  double res = 0;
+  auto T = calibrationHandtoEye(T_cam2target_list, T_base2gripper_list,
+                                T_bc_adjust, T_et_adjust, &res);
+  std::cout << "res: " << res << std::endl;
+  std::cout << "T_bc:\n" << T[0] << std::endl;
+  std::cout << "  RPY: "
+            << RotToRPY(T[0].block<3, 3>(0, 0)).transpose() * 180 / M_PI
+            << std::endl;
+  std::cout << "T_et:\n" << T[1] << std::endl;
+  writeEigenXdToFile("charuco/data/T_bc.txt", T[0]);
+  std::cout << " RPY: "
+            << RotToRPY(T[1].block<3, 3>(0, 0)).transpose() * 180 / M_PI
+            << std::endl;
+  writeEigenXdToFile("charuco/data/T_et.txt", T[1]);
   // std::vector<cv::Mat> R_gripper2base_list, t_gripper2base_list;
   // for (size_t i = 0; i < R_base2gripper_list.size(); ++i) {
   //     cv::Mat R_gripper2base = R_base2gripper_list[i].t();

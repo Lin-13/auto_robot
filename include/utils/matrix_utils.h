@@ -8,7 +8,7 @@ cv::Mat eigenXdToCvMat(const Eigen::MatrixXd &eigen_mat);
 KDL::Frame eigenXdToKdlFrame(const Eigen::MatrixXd &eigen_mat);
 Eigen::MatrixXd kdlFrameToEigenXd(const KDL::Frame &frame);
 Eigen::MatrixXd RPYToRot(const Eigen::Vector3d &rpy);
-
+Eigen::Vector3d RotToRPY(const Eigen::Matrix3d &R);
 void adjustRotateInplace(Eigen::Matrix3d &R, int x, int y, int z);
 std::vector<Eigen::Matrix3d> generateRandomRotations(int n);
 std::vector<Eigen::Vector3d>
@@ -16,7 +16,7 @@ generateRandomTranslation(int n, double limit = 1.0, double norm_min = 0.1);
 std::vector<Eigen::Matrix4d>
 generateRandomTransformations(int n, double limit = 1.0, double norm_min = 0.1);
 int writeEigenXdToFile(const std::string &filename, const Eigen::MatrixXd &mat);
-int readEigenXdFromFile(const std::string &filename, Eigen::MatrixXd &mat);
+Eigen::MatrixXd readEigenXdFromFile(const std::string &filename);
 
 Eigen::Matrix3d
 solveAXXBShiu(const Eigen::Matrix3d &A, const Eigen::Matrix3d &B,

@@ -93,7 +93,7 @@ Eigen::MatrixXd RPYToRot(const Eigen::Vector3d &rpy) {
   return R;
 }
 
-Eigen::VectorXd RotToRPY(const Eigen::Matrix3d &R) {
+Eigen::Vector3d RotToRPY(const Eigen::Matrix3d &R) {
   double roll, pitch, yaw;
   // 计算pitch
   pitch = std::asin(-R(2, 0));
@@ -228,11 +228,12 @@ std::vector<Eigen::Matrix4d> generateRandomTransformations(int n, double limit,
  * @param mat 矩阵
  * @return 读取成功返回0，否则返回-1
  */
-int readEigenXdFromFile(const std::string &filename, Eigen::MatrixXd &mat) {
+Eigen::MatrixXd readEigenXdFromFile(const std::string &filename) {
   std::ifstream infile(filename);
+  Eigen::MatrixXd mat;
   if (!infile.is_open()) {
     fmt::print("无法打开文件: {}\n", filename);
-    return -1;
+    return mat;
   }
   std::vector<std::vector<double>> data;
   std::string line;
@@ -250,7 +251,7 @@ int readEigenXdFromFile(const std::string &filename, Eigen::MatrixXd &mat) {
   infile.close();
   if (data.empty()) {
     fmt::print("文件为空或格式错误: {}\n", filename);
-    return -1;
+    return mat;
   }
   size_t rows = data.size();
   size_t cols = data[0].size();
@@ -260,7 +261,7 @@ int readEigenXdFromFile(const std::string &filename, Eigen::MatrixXd &mat) {
       mat(i, j) = data[i][j];
     }
   }
-  return 0;
+  return mat;
 }
 /**
  * @brief 将Eigen::MatrixXd写入文件
@@ -546,6 +547,9 @@ solveATTBKron(const std::vector<Eigen::Matrix4d> &T_A,
  *
  * @param T_c_t 相机到工具的变换矩阵
  * @param T_b_e 基座到末端的变换矩阵
+ * @param adjustTbc 对T_bc(base->相机)的修正函数
+ * @param adjustTet 对T_et(相机->工具)的修正函数correctTransformInplace
+ * @param res 残差指针，默认 nullptr
  * @return std::vector<Eigen::Matrix4d> {T_bc, T_et}
  */
 std::vector<Eigen::Matrix4d>

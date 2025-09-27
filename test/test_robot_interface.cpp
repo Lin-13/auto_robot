@@ -141,7 +141,7 @@ void testTimer() {
 }
 void testRobotController() {
   auto robot_controller =
-      SimpleRobotController("test_robot_controller", 6, {k_p : 2});
+      SimpleRobotController("test_robot_controller", 6, {.k_p = 2});
   int ret = robot_controller.Initialize();
   if (ret != 0) {
     std::cout << "Robot Controller Initialize failed" << std::endl;
@@ -161,7 +161,7 @@ void testRobotController() {
 void testRobotJointMove() {
   SimpleRobotController::Ptr robot_controller =
       std::make_shared<SimpleRobotController>("test_robot_controller", 6,
-                                              ControllerConfig({k_p : 3}));
+                                              ControllerConfig({.k_p = 3}));
   int ret = robot_controller->Initialize();
   if (ret != 0) {
     std::cout << "Robot Controller Initialize failed" << std::endl;
@@ -187,7 +187,7 @@ void testRobotJointMove() {
 }
 void testRobotPoseRelativeMove() {
   auto robot_controller = std::make_shared<SimpleRobotController>(
-      "test_robot_controller", 6, ControllerConfig({k_p : 3}));
+      "test_robot_controller", 6, ControllerConfig({.k_p = 3}));
   int ret = robot_controller->Initialize();
 
   if (ret != 0) {

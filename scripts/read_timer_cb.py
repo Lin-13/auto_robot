@@ -259,7 +259,7 @@ def plot_joint_trends(
         # 设置子图标题与标签
         ax.set_title(f"{label} Joint Angle", fontsize=12, fontweight="bold", pad=10)
         ax.set_xlabel("Time (s)", fontsize=10)
-        ax.set_ylabel(f"Angle (deg)", fontsize=10)
+        ax.set_ylabel("Angle (deg)", fontsize=10)
 
         # 添加图例与网格
         ax.legend(fontsize=9)

@@ -2,8 +2,12 @@ project(aubo_robot)
 cmake_minimum_required(VERSION 3.10)
 
 set(CXX_STANDARD 20)
-set(CMAKE_C_COMPILER "/usr/bin/gcc-12")
-set(CMAKE_CXX_COMPILER "/usr/bin/g++-12")
+
+# set(CMAKE_C_COMPILER "/usr/bin/clang")
+# set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
+
+# set(CMAKE_C_COMPILER "/usr/bin/gcc-12")
+# set(CMAKE_CXX_COMPILER "/usr/bin/g++-12")
 set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install")
 add_compile_options(-std=c++20)
 
@@ -52,6 +56,7 @@ target_link_libraries(aubo
     PRIVATE
     robot_interface
     fmt::fmt
+    auborobotcontroller
 
     # orocos-kdl
     # Eigen3::Eigen
@@ -69,6 +74,7 @@ target_link_libraries(
 add_executable(aruco_detect src/calib_handeye/opencv_aruco_detect.cpp)
 target_link_libraries(
     aruco_detect
+    PRIVATE
     fmt::fmt
     ${OpenCV_LIBS}
     realsense2
@@ -80,6 +86,7 @@ add_executable(calib
 )
 target_link_libraries(
     calib
+    PRIVATE
     fmt::fmt
     ${OpenCV_LIBS}
 )
@@ -87,6 +94,21 @@ target_link_libraries(
 add_executable(calib_handeye src/calib_handeye/calib_handeye.cpp)
 target_link_libraries(
     calib_handeye
+    PRIVATE
+    aubo
+    robot_interface
+    fmt::fmt
+    ${OpenCV_LIBS}
+    orocos-kdl
+    realsense2
+    utils
+)
+add_executable(vision_control src/calib_handeye/vision_control.cpp)
+target_link_libraries(
+    vision_control
+    PRIVATE
+    aubo
+    robot_interface
     fmt::fmt
     ${OpenCV_LIBS}
     orocos-kdl
@@ -108,9 +130,6 @@ target_link_libraries(
     RobotInterface
     PRIVATE
     robot_interface
-
-    # utils
-    # auborobotcontroller
     ${GTEST_LIBRARIES}
     GTest::gtest_main
 )
@@ -118,7 +137,8 @@ add_executable(AuboTests test/test_aubo.cpp)
 target_link_libraries(
     AuboTests
     aubo
-    auborobotcontroller
+
+    # auborobotcontroller
     ${GTEST_LIBRARIES}
     GTest::gtest_main
 )
