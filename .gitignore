@@ -4,3 +4,4 @@ install/
 .idea/
 log/
 asserts/
+.cache
