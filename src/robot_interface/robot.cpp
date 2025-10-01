@@ -43,11 +43,14 @@ int Robot::stop() {
  * @brief 轨迹绝对位置移动，只能在start后调用
  *
  * @param trajectory 轨迹，时间-位置（joint-Eigen::VectorXd）
- * @param interval 移动间隔，单位为毫秒
+ * @param interval 移动间隔，单位为毫秒  `默认100ms`
+ * @param log 是否打印日志  `默认0`
+ * @param start_now 是否立即开始移动，0为否，1为是  `默认1`
  * @return int 返回移动状态，0为成功，-1为失败
  */
 int Robot::MoveJoint(const Trajectory &trajectory,
-                     std::chrono::milliseconds interval, int log) {
+                     std::chrono::milliseconds interval, int log,
+                     int start_now) {
   if (enable == 0) {
     return -1;
   }
@@ -72,7 +75,7 @@ int Robot::MoveJoint(const Trajectory &trajectory,
       }
       return -1; // Stop Traj Timer
     }
-    Eigen::MatrixXd pos = this->interplote(t, traj);
+    Eigen::MatrixXd pos = this->interpolate(t, traj);
     if (log) {
       std::cout << "MoveJoint: t = " << t << ", pos = " << pos.transpose()
                 << std::endl;
@@ -81,8 +84,11 @@ int Robot::MoveJoint(const Trajectory &trajectory,
     return 0;
   };
   Timer::Ptr timer = Timer::create("MoveJoint", time_cb, interval, nullptr);
-  timers_.emplace("MoveJoint", timer);
-  timer->start();
+  timers_.insert_or_assign("DefaultTimer", timer);
+  // C++17, 若键不存在直接构造并插入，若存在则更新值
+  if (start_now) {
+    timer->start();
+  }
 
   return 0;
 }
@@ -90,12 +96,14 @@ int Robot::MoveJoint(const Trajectory &trajectory,
  * @brief 轨迹相对位置移动，只能在start后调用
  *
  * @param trajectory 轨迹，时间-位置[joint-Eigen::VectorXd）
- * @param interval 移动间隔，单位为毫秒
- * @param log 是否打印日志
+ * @param interval 移动间隔，单位为毫秒  `默认100ms`
+ * @param log 是否打印日志  `默认0`
+ * @param start_now 是否立即开始移动，0为否，1为是  `默认1`
  * @return int 返回移动状态，0为成功，-1为失败
  */
 int Robot::MoveJointRelative(const Trajectory &trajectory,
-                             std::chrono::milliseconds interval, int log) {
+                             std::chrono::milliseconds interval, int log,
+                             int start_now) {
   if (enable == 0) {
     return -1;
   }
@@ -114,18 +122,20 @@ int Robot::MoveJointRelative(const Trajectory &trajectory,
   for (auto &pair : traj) {
     pair.second += joint_pos;
   }
-  return MoveJoint(trajectory, interval, log);
+  return MoveJoint(trajectory, interval, log, start_now);
 }
 /**
  * @brief 轨迹绝对位置移动，只能在start后调用
  *
  * @param trajectory 轨迹，位置[pose-Matrix4d）
- * @param interval 移动间隔，单位为毫秒
- * @param log 是否打印日志
+ * @param interval 移动间隔，单位为毫秒  `默认100ms`
+ * @param log 是否打印日志  `默认0`
+ * @param start_now 是否立即开始移动，0为否，1为是  `默认1`
  * @return int 返回移动状态，0为成功，-1为失败
  */
 int Robot::MovePose(const Trajectory &trajectory,
-                    std::chrono::milliseconds interval, int log) {
+                    std::chrono::milliseconds interval, int log,
+                    int start_now) {
   if (enable == 0) {
     return -1;
   }
@@ -154,7 +164,7 @@ int Robot::MovePose(const Trajectory &trajectory,
                                                                      start_time)
                    .count() /
                1.0e6;
-    Eigen::Matrix4d pos = this->interplotePose(t, traj);
+    Eigen::Matrix4d pos = this->interpolatePose(t, traj);
     int ret;
     Eigen::VectorXd pos_joint = topology_->trans_inv(pos, last_joint, &ret);
     if (ret != 0) { // trans_inv E_NOERROR=0
@@ -191,20 +201,25 @@ int Robot::MovePose(const Trajectory &trajectory,
     return 0;
   };
   Timer::Ptr timer = Timer::create("MovePose", pose_time_cb, interval, nullptr);
-  timers_.emplace("MovePose", timer);
-  timer->start();
+  timers_.insert_or_assign("DefaultTimer", timer);
+  // C++17, 若键不存在直接构造并插入，若存在则更新
+  if (start_now) {
+    timer->start();
+  }
   return 0;
 }
 /**
  * @brief 轨迹相对位置移动，只能在start后调用,以基坐标系进行相对运动
  *
  * @param trajectory 轨迹，位置[pose-Matrix4d）
- * @param interval 移动间隔，单位为毫秒
- * @param log 是否打印日志
+ * @param interval 移动间隔，单位为毫秒  `默认100ms`
+ * @param log 是否打印日志  `默认0`
+ * @param start_now 是否立即开始移动，0为否，1为是  `默认1`
  * @return int 返回移动状态，0为成功，-1为失败
  */
 int Robot::MovePoseRelative(const Trajectory &trajectory,
-                            std::chrono::milliseconds interval, int log) {
+                            std::chrono::milliseconds interval, int log,
+                            int start_now) {
   if (enable == 0) {
     return -1;
   }
@@ -258,7 +273,7 @@ int Robot::MovePoseRelative(const Trajectory &trajectory,
                 << pair.second << std::endl;
     }
   }
-  return MovePose(traj, interval, log);
+  return MovePose(traj, interval, log, start_now);
 }
 /**
  * @brief 检查轨迹是否合法
@@ -299,8 +314,8 @@ std::string Robot::checkTrajectoryType(const Trajectory &trajectory) {
  * @param trajectory 轨迹
  * @return Eigen::MatrixXd 插值结果
  */
-Eigen::MatrixXd Robot::interplote(const double t,
-                                  const Trajectory &trajectory) {
+Eigen::MatrixXd Robot::interpolate(const double t,
+                                   const Trajectory &trajectory) {
   if (checkTrajectoryType(trajectory) != "joint") {
     return Eigen::MatrixXd::Zero(getJointNum(), 1);
   }
@@ -335,8 +350,8 @@ Eigen::MatrixXd Robot::interplote(const double t,
  * @param trajectory 轨迹
  * @return Eigen::Matrix4d 插值结果
  */
-Eigen::Matrix4d Robot::interplotePose(const double t,
-                                      const Trajectory &trajectory) {
+Eigen::Matrix4d Robot::interpolatePose(const double t,
+                                       const Trajectory &trajectory) {
   if (checkTrajectoryType(trajectory) != "pose") {
     return Eigen::Matrix4d::Identity();
   }
@@ -361,18 +376,24 @@ Eigen::Matrix4d Robot::interplotePose(const double t,
       Eigen::Matrix4d T0 = trajectory[i].second;
       Eigen::Matrix4d T1 = trajectory[i + 1].second;
       Eigen::Matrix4d T = Eigen::Matrix4d::Identity();
-      Eigen::Matrix3d R0 = T0.block<3, 3>(0, 0);
-      Eigen::Matrix3d R1 = T1.block<3, 3>(0, 0);
-      Eigen::Vector3d p0 = T0.block<3, 1>(0, 3);
-      Eigen::Vector3d p1 = T1.block<3, 1>(0, 3);
-      Eigen::Matrix3d deltaR = R1 * R0.transpose();
-      Eigen::Matrix3d dR = so3ToSO3(lambda * SO3Toso3(deltaR));
-      T.block<3, 3>(0, 0) = dR * R0;
+      if (interpolate_se3 != 1) {
+        Eigen::Matrix3d R0 = T0.block<3, 3>(0, 0);
+        Eigen::Matrix3d R1 = T1.block<3, 3>(0, 0);
+        Eigen::Vector3d p0 = T0.block<3, 1>(0, 3);
+        Eigen::Vector3d p1 = T1.block<3, 1>(0, 3);
+        Eigen::Matrix3d deltaR = R1 * R0.transpose();
+        Eigen::Matrix3d dR = so3ToSO3(lambda * SO3Toso3(deltaR));
+        T.block<3, 3>(0, 0) = dR * R0;
 
-      // Eigen::Quaterniond q0(R0), q1(R1);
-      // Eigen::Quaterniond q_interp = q0.slerp(lambda, q1);
-      // T.block<3, 3>(0, 0) = q_interp.toRotationMatrix(); //四元数插值
-      T.block<3, 1>(0, 3) = p0 + (p1 - p0) * lambda;
+        // Eigen::Quaterniond q0(R0), q1(R1);
+        // Eigen::Quaterniond q_interp = q0.slerp(lambda, q1);
+        // T.block<3, 3>(0, 0) = q_interp.toRotationMatrix(); //四元数插值
+        T.block<3, 1>(0, 3) = p0 + (p1 - p0) * lambda;
+      } else {
+        Eigen::Matrix4d deltaT = T1 * T0.inverse();
+        Eigen::Matrix4d dT = se3ToSE3(lambda * SE3Tose3(deltaT));
+        T = dT * T0;
+      }
       return T;
     }
   }

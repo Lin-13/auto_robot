@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
   std::vector<Eigen::Matrix4d> T_cam2target_list, T_base2gripper_list;
   T_cam2target_list.reserve(num_poses);
   T_base2gripper_list.reserve(num_poses);
-  std::string data_folder = "optitrack_handeye";
+  std::string data_folder = "optitrack_handeye_left";
   if (!std::filesystem::exists(data_folder)) {
     std::filesystem::create_directories(data_folder);
   }
@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
   fmt::print("Calibration result: {}\n", res);
   std::cout << "T_base2camera result: \n" << T[0] << std::endl;
   std::cout << "T_end2target result: \n" << T[1] << std::endl;
-  writeEigenXdToFile(fmt::format("{}/Tbc.txt", data_folder), T[0]);
-  writeEigenXdToFile(fmt::format("{}/Tet.txt", data_folder), T[1]);
+  writeEigenXdToFile(fmt::format("{}/T_bc.txt", data_folder), T[0]);
+  writeEigenXdToFile(fmt::format("{}/T_et.txt", data_folder), T[1]);
   return 0;
 }
