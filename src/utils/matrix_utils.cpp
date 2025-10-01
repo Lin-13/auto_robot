@@ -718,3 +718,84 @@ Eigen::VectorXd SE3Tose3(const Eigen::Matrix4d &T) {
 //   lie_algebra.tail<3>() = SO3Toso3(T.block<3, 3>(0, 0));
 //   return lie_algebra;
 // }
+
+/**
+ * @brief 重力补偿
+ * @details
+        求解方程组F_measure[i] = R_{i}^T * G_w +f_0
+        M_measure[i] = L cross (R_{i}^T * G_w) +m_0
+        其中 G_w 为世界坐标系中的重力向量{0,0,-mg}，
+        f_0 为力漂移向量，m_0为力矩漂移向量,
+        R_{i} 为世界坐标系中的力传感器位姿 L 为传感器坐标系中的重心坐标
+ * @param F_measure 力传感器测量值
+ * @param M_measure 力矩传感器测量值
+ * @param R_i 力传感器位姿 - 世界坐标系中测得
+ * @param L 传感器坐标系中的重心坐标
+ * @param G_w 世界坐标系中的重力向量
+ * @param f_0 为力漂移向量
+ * @param m_0 为力矩漂移向量
+ * @return double 重力补偿值
+ */
+double gravity_compensation(const std::vector<Eigen::Vector3d> &F_measure,
+                            const std::vector<Eigen::Vector3d> &M_measure,
+                            const std::vector<Eigen::Matrix3d> &R_i,
+                            Eigen::Vector3d &L, Eigen::Vector3d &G_w,
+                            Eigen::Vector3d &f_0, Eigen::Vector3d &m_0) {
+  if (F_measure.size() != M_measure.size()) {
+    throw std::invalid_argument(
+        "F_measure and M_measure must have the same size");
+  }
+  // 首先通过方程组F_measure[i] = R_{i}^T * G_w +f_0
+  // 来求解f_0，G_W
+  Eigen::VectorXd F = Eigen::VectorXd::Zero(F_measure.size() * 3);
+  for (int i = 0; i < F_measure.size(); ++i) {
+    F.block<3, 1>(i * 3, 0) = F_measure[i];
+  }
+  Eigen::MatrixXd R_0 = Eigen::MatrixXd::Zero(R_i.size() * 3, 6);
+  for (int i = 0; i < R_i.size(); ++i) {
+    R_0.block<3, 3>(i * 3, 0) = R_i[i].transpose();
+    R_0.block<3, 3>(i * 3, 3) = Eigen::Matrix3d::Identity();
+  }
+  Eigen::VectorXd x =
+      R_0.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV).solve(F);
+  Eigen::Vector3d G_w_estimate = x.head<3>();
+  Eigen::Vector3d f_0_estimate = x.tail<3>();
+
+  // 然后通过方程组M_measure[i] = L cross (R_{i}^T * G_w) +m_0
+  // 改写为 M_measure[i] = (F_measure[i] - f_0_estimate) * [L] + m_0
+  // 同样求解L,m_0
+  Eigen::VectorXd M = Eigen::VectorXd::Zero(M_measure.size() * 3);
+  for (int i = 0; i < M_measure.size(); ++i) {
+    M.block<3, 1>(i * 3, 0) = M_measure[i];
+  }
+  Eigen::VectorXd F_1 = Eigen::VectorXd::Zero(F_measure.size() * 3);
+  for (int i = 0; i < F_measure.size(); ++i) {
+    F_1.block<3, 1>(i * 3, 0) = F_measure[i] - f_0_estimate;
+  }
+  Eigen::MatrixXd R_1 = Eigen::MatrixXd::Zero(F_measure.size() * 3, 6);
+  for (int i = 0; i < F_measure.size(); ++i) {
+    R_1.block<3, 3>(i * 3, 0) = skew(F_1.block<3, 1>(i * 3, 0));
+    R_1.block<3, 3>(i * 3, 3) = Eigen::Matrix3d::Identity();
+  }
+  Eigen::VectorXd x_1 =
+      R_1.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV).solve(M);
+  Eigen::Vector3d L_estimate = x_1.head<3>();
+  Eigen::Vector3d m_0_estimate = x_1.tail<3>();
+  // 计算残差
+  double res = 0;
+  for (int i = 0; i < F_measure.size(); ++i) {
+    res += (F_measure[i] - R_i[i].transpose() * G_w_estimate - f_0_estimate)
+               .squaredNorm();
+  }
+  for (int i = 0; i < M_measure.size(); ++i) {
+    res += (M_measure[i] - L_estimate.cross(R_i[i].transpose() * G_w_estimate) -
+            m_0_estimate)
+               .squaredNorm();
+  }
+  // 更新结果
+  L = L_estimate;
+  G_w = G_w_estimate;
+  f_0 = f_0_estimate;
+  m_0 = m_0_estimate;
+  return res;
+}

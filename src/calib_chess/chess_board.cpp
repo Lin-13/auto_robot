@@ -1,4 +1,4 @@
-#include "CalibChessBoard.h"
+#include "calib_chess/CalibChessBoard.h"
 int main_fcn();
 #include <thread>
 int main(int argc, char **argv) {

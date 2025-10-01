@@ -58,3 +58,10 @@ Eigen::Vector3d SO3Toso3(const Eigen::Matrix3d &R);
 Eigen::Matrix3d so3ToSO3(const Eigen::Vector3d &so3);
 Eigen::VectorXd SE3Tose3(const Eigen::Matrix4d &T);
 Eigen::Matrix4d se3ToSE3(const Eigen::VectorXd &se3);
+
+// 重力补偿
+double gravity_compensation(const std::vector<Eigen::Vector3d> &F_measure,
+                            const std::vector<Eigen::Vector3d> &M_measure,
+                            const std::vector<Eigen::Matrix3d> &R_i,
+                            Eigen::Vector3d &L, Eigen::Vector3d &G_w,
+                            Eigen::Vector3d &f_0, Eigen::Vector3d &m_0);

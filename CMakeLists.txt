@@ -15,19 +15,28 @@ set(OpenCV4_DIR "/home/lwx/local/lib/cmake/opencv4")
 find_package(OpenCV REQUIRED PATHS ${OpenCV4_DIR} NO_DEFAULT_PATH)
 find_package(Eigen3 REQUIRED)
 find_package(fmt REQUIRED)
+find_package(LibXml2 REQUIRED)
 
 include_directories(
     include
     dependents/robotSDK/inc
     ${OpenCV_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIRS}
+    ${LIBXML2_INCLUDE_DIR}
 )
 link_directories(
     include
     dependents/robotSDK/lib/linux_x64
     dependents/log4cplus/linux_x64/lib
 )
-
+add_library(ft_sensor
+    STATIC
+    src/ft_sensor/ft_sensor.cpp
+)
+target_link_libraries(ft_sensor
+    PRIVATE
+    ${LIBXML2_LIBRARIES}
+)
 add_library(
     utils
     STATIC
@@ -71,6 +80,16 @@ target_link_libraries(
     realsense2
 )
 
+add_library(optitrack
+    STATIC
+    src/optitrack/optitrack_vrpn_cap.cpp
+)
+target_link_libraries(optitrack
+    PRIVATE
+    vrpn
+    quat # vrpn的依赖
+)
+
 add_executable(aruco_detect src/calib_handeye/opencv_aruco_detect.cpp)
 target_link_libraries(
     aruco_detect
@@ -103,17 +122,14 @@ target_link_libraries(
     realsense2
     utils
 )
-add_executable(vision_control src/calib_handeye/vision_control.cpp)
+add_executable(calib_handeye_optitrack src/calib_handeye/calib_handeye_optitrack.cpp)
 target_link_libraries(
-    vision_control
+    calib_handeye_optitrack
     PRIVATE
     aubo
-    robot_interface
     fmt::fmt
-    ${OpenCV_LIBS}
-    orocos-kdl
-    realsense2
     utils
+    optitrack
 )
 
 # Test
@@ -141,6 +157,13 @@ target_link_libraries(
     # auborobotcontroller
     ${GTEST_LIBRARIES}
     GTest::gtest_main
+)
+add_executable(OptitrackTests test/test_vrpn.cpp)
+target_link_libraries(
+    OptitrackTests
+    PRIVATE
+    vrpn
+    quat # vrpn的依赖
 )
 install(
     TARGETS
