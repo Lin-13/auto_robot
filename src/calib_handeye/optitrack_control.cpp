@@ -4,6 +4,10 @@
 #include "utils/matrix_utils.h"
 #include "utils/utils.h"
 #include <fmt/format.h>
+#define CONTEXT_MONITOR
+#ifdef CONTEXT_MONITOR
+#include "context_monitor/monitor_server.h"
+#endif
 /**
  * @brief 计算从T_ct_start到T_ct_end的移动矩阵
  *        原理：`T_bc * T_ct = T_be * T_et`
@@ -129,6 +133,15 @@ int main(int argc, char *argv[]) {
       optitrack.GetTransformcam2target("target_right");
   Eigen::MatrixXd T_left_be_current = robot_left->currentPose();
   Eigen::MatrixXd T_right_be_current = robot_right->currentPose();
+#if defined CONTEXT_MONITOR
+  std::thread server_thread(RunMonitorServer, 50051);
+  {
+    fmt::print("Context monitor enabled.\n");
+    REGISTER_MONITOR_VARIABLE(T_object_current);
+    REGISTER_MONITOR_VARIABLE(T_left_ct_current);
+    REGISTER_MONITOR_VARIABLE(T_right_ct_current);
+  }
+#endif
   /********************************* */
   while (1) {
     Eigen::MatrixXd T_left_ct_des, T_right_ct_des;

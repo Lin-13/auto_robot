@@ -799,3 +799,31 @@ double gravity_compensation(const std::vector<Eigen::Vector3d> &F_measure,
   m_0 = m_0_estimate;
   return res;
 }
+/**
+ * @brief 力旋量分配
+ * @details
+        给定一个力旋量 wrench = [f; m]，
+        以及两个点 p1, p2，
+        求解 wrench 在 p1, p2 上的分配 F1,F2
+        `任意一个力旋量都可以转化为两个点的力`
+        [f,t]T = [I,I;S(p1),S(p2)][F1,F2]T
+ * @param wrench 力旋量 [f; m]
+ * @param p1 点1
+ * @param p2 点2
+ * @return std::vector<Eigen::VectorXd> 分配后的力旋量
+ */
+std::vector<Eigen::VectorXd> WrenchAssign(const Eigen::Vector3d &wrench,
+                                          const Eigen::Vector3d &p1,
+                                          const Eigen::Vector3d &p2) {
+  Eigen::Matrix3d skew_p1 = skew(p1);
+  Eigen::Matrix3d skew_p2 = skew(p2);
+  Eigen::MatrixXd J = Eigen::MatrixXd::Zero(6, 6);
+  J.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
+  J.block<3, 3>(0, 3) = Eigen::Matrix3d::Identity();
+  J.block<3, 3>(3, 0) = skew_p1;
+  J.block<3, 3>(3, 3) = skew_p2;
+  Eigen::VectorXd F = J.jacobiSvd().solve(wrench);
+  Eigen::Vector3d F1 = F.head<3>();
+  Eigen::Vector3d F2 = F.tail<3>();
+  return {F1, F2};
+}

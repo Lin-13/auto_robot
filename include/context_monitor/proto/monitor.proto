@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package context_monitor;
+
+service MonitorService {
+    // 获取变量值
+    rpc GetVariable (VariableRequest) returns (VariableResponse);
+    
+    // 设置变量值
+    rpc SetVariable (VariableUpdate) returns (StatusResponse);
+    
+    // 列出所有变量
+    rpc ListVariables (EmptyRequest) returns (VariablesList);
+}
+
+message EmptyRequest {}
+
+message VariableRequest {
+    string name = 1;
+}
+
+message VariableResponse {
+    string name = 1;
+    string type = 2;
+    string value = 3;
+    bool found = 4;
+}
+
+message VariableUpdate {
+    string name = 1;
+    string value = 2;
+}
+
+message StatusResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message VariablesList {
+    repeated string names = 1;
+}

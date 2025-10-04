@@ -65,3 +65,7 @@ double gravity_compensation(const std::vector<Eigen::Vector3d> &F_measure,
                             const std::vector<Eigen::Matrix3d> &R_i,
                             Eigen::Vector3d &L, Eigen::Vector3d &G_w,
                             Eigen::Vector3d &f_0, Eigen::Vector3d &m_0);
+// 力旋量相关矩阵和向量操作
+std::vector<Eigen::VectorXd> WrenchAssign(const Eigen::Vector3d &wrench,
+                                          const Eigen::Vector3d &p1,
+                                          const Eigen::Vector3d &p2);

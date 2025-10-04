@@ -1,6 +1,7 @@
 #pragma once
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <iostream>
 #include <robot_interface/timer.h>
 /**
  * @brief PID控制器配置参数
@@ -95,4 +96,53 @@ protected:
   // time
   uint64_t start_timestamp_ = 0, current_timestamp_ = 0;
   uint64_t robot_start_timestamp_ = 0, robot_current_timestamp_ = 0;
+};
+/**
+ * @brief 简单的机器人控制器，用于模拟机器人运动
+ *
+ */
+class SimpleRobotController : public RobotController {
+public:
+  SimpleRobotController(std::string name, int num_joints = 6,
+                        ControllerConfig config = ControllerConfig(),
+                        int print_log = 0)
+      : RobotController(name, num_joints, config) {
+    sim_state.joint_state = Eigen::VectorXd::Zero(num_joints);
+    print_log_ = print_log;
+  }
+  virtual int
+  Initialize(std::chrono::milliseconds timer_period = 33ms) override {
+    int ret = RobotController::Initialize(timer_period);
+    return ret;
+  }
+  virtual int setJointState(RobotJointState joint_state) override {
+    if (print_log_) {
+      std::cerr << "setJointState: " << joint_state.joint_state.transpose()
+                << std::endl;
+    }
+    sim_state = joint_state;
+    return 0;
+  }
+  virtual RobotJointState getJointState() override {
+    if (print_log_) {
+      std::cerr << "getJointState: " << sim_state.joint_state.transpose()
+                << std::endl;
+    }
+    sim_state.timestamp = std::chrono::steady_clock::now();
+    return sim_state;
+  }
+  int timer_cb() override {
+    // // log
+    // std::cerr << "Joints: " << getJointState().joint_state.transpose()
+    //           << std::endl;
+    if (print_log_) {
+      std::cerr << "Derived timer_cb" << std::endl;
+    }
+    RobotController::timer_cb();
+    return 0;
+  }
+
+public:
+  RobotJointState sim_state;
+  int print_log_;
 };

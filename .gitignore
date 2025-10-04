@@ -5,3 +5,5 @@ install/
 log/
 asserts/
 .cache
+.venv
+__pycache__/

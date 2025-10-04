@@ -2,51 +2,7 @@
 #include <robot_interface/robot.h>
 #include <robot_interface/timer.h>
 #include <utils/matrix_utils.h>
-class SimpleRobotController : public RobotController {
-public:
-  SimpleRobotController(std::string name, int num_joints = 6,
-                        ControllerConfig config = ControllerConfig(),
-                        int print_log = 0)
-      : RobotController(name, num_joints, config) {
-    sim_state.joint_state = Eigen::VectorXd::Zero(num_joints);
-    print_log_ = print_log;
-  }
-  virtual int
-  Initialize(std::chrono::milliseconds timer_period = 33ms) override {
-    int ret = RobotController::Initialize(timer_period);
-    return ret;
-  }
-  virtual int setJointState(RobotJointState joint_state) override {
-    if (print_log_) {
-      std::cerr << "setJointState: " << joint_state.joint_state.transpose()
-                << std::endl;
-    }
-    sim_state = joint_state;
-    return 0;
-  }
-  virtual RobotJointState getJointState() override {
-    if (print_log_) {
-      std::cerr << "getJointState: " << sim_state.joint_state.transpose()
-                << std::endl;
-    }
-    sim_state.timestamp = std::chrono::steady_clock::now();
-    return sim_state;
-  }
-  int timer_cb() override {
-    // // log
-    // std::cerr << "Joints: " << getJointState().joint_state.transpose()
-    //           << std::endl;
-    if (print_log_) {
-      std::cerr << "Derived timer_cb" << std::endl;
-    }
-    RobotController::timer_cb();
-    return 0;
-  }
 
-public:
-  RobotJointState sim_state;
-  int print_log_;
-};
 RobotTopology::Ptr auboRobotTopology() {
   auto robot = std::make_shared<KDL::Chain>();
   // TODO：github上的auboi16参数，与实际参数对不上

@@ -1,5 +1,5 @@
 project(aubo_robot)
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.15)
 
 set(CXX_STANDARD 20)
 
@@ -17,6 +17,7 @@ find_package(Eigen3 REQUIRED)
 find_package(fmt REQUIRED)
 find_package(LibXml2 REQUIRED)
 
+find_package(gRPC CONFIG REQUIRED)
 include_directories(
     include
     dependents/robotSDK/inc
@@ -90,6 +91,26 @@ target_link_libraries(optitrack
     quat # vrpn的依赖
 )
 
+add_library(grpc_proto
+    STATIC
+    include/context_monitor/proto/monitor.pb.cc
+    include/context_monitor/proto/monitor.grpc.pb.cc
+)
+target_link_libraries(grpc_proto
+    PRIVATE
+    gRPC::grpc++
+    gRPC::grpc++_reflection
+    protobuf::libprotobuf
+)
+add_library(context_monitor
+    STATIC
+    src/context_monitor/monitor_server.cpp
+    src/context_monitor/monitor_client.cpp
+)
+target_link_libraries(context_monitor
+    PRIVATE
+    grpc_proto
+)
 add_executable(aruco_detect src/calib_handeye/opencv_aruco_detect.cpp)
 target_link_libraries(
     aruco_detect
@@ -165,11 +186,30 @@ target_link_libraries(
     vrpn
     quat # vrpn的依赖
 )
+add_executable(OptitrackControl src/calib_handeye/optitrack_control.cpp)
+target_link_libraries(
+    OptitrackControl
+    PRIVATE
+    aubo
+    fmt::fmt
+    utils
+    optitrack
+    context_monitor
+)
 install(
     TARGETS
-    aruco_detect calib calib_handeye
+    aruco_detect calib calib_handeye calib_handeye_optitrack OptitrackControl
     DESTINATION
     ${CMAKE_INSTALL_PREFIX}
+)
+
+add_executable(ContextMonitorTests test/test_context_monitor.cpp)
+target_link_libraries(
+    ContextMonitorTests
+    PRIVATE
+    context_monitor
+    ${GTEST_LIBRARIES}
+    GTest::gtest_main
 )
 
 # Google Test
