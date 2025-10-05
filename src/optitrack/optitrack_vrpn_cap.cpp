@@ -37,14 +37,12 @@ OptiTrackRigidBodyCap::OptiTrackRigidBodyCap(
 }
 void OptiTrackRigidBodyCap::CapThread() {
   while (!thread_should_stop_) {
-    while (true) {
-      for (auto &[rb_name, tracker] : trackers_) {
-        current_tracker_name_ = rb_name;
-        tracker->mainloop();
-      }
-      // ~100Hz
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    for (auto &[rb_name, tracker] : trackers_) {
+      current_tracker_name_ = rb_name;
+      tracker->mainloop();
     }
+    // ~100Hz
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
   return;
 }

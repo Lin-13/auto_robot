@@ -9,6 +9,9 @@ set(CXX_STANDARD 20)
 # set(CMAKE_C_COMPILER "/usr/bin/gcc-12")
 # set(CMAKE_CXX_COMPILER "/usr/bin/g++-12")
 set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-z,lazy")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,lazy")
+
 add_compile_options(-std=c++20)
 
 set(OpenCV4_DIR "/home/lwx/local/lib/cmake/opencv4")
@@ -78,7 +81,6 @@ target_link_libraries(
     ${OpenCV_LIBS}
     Eigen3::Eigen
     orocos-kdl
-    realsense2
 )
 
 add_library(optitrack
@@ -195,6 +197,12 @@ target_link_libraries(
     utils
     optitrack
     context_monitor
+
+    protobuf::libprotobuf
+
+    # context_monitor必须放在也使用了protubuf的aubo前面，
+    # 若放在后面必须再次链接protobuf::libprotobuf，
+    # 否测会报错 ： double free or corruption (out)
 )
 install(
     TARGETS
@@ -208,8 +216,9 @@ target_link_libraries(
     ContextMonitorTests
     PRIVATE
     context_monitor
-    ${GTEST_LIBRARIES}
-    GTest::gtest_main
+
+    # ${GTEST_LIBRARIES}
+    # GTest::gtest_main
 )
 
 # Google Test

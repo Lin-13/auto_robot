@@ -34,6 +34,7 @@ Eigen::MatrixXd GlobalMoveToEndMove(Eigen::MatrixXd T_bc, Eigen::MatrixXd T_et,
   return T_be_end * T_be_start.inverse();
 }
 int main(int argc, char *argv[]) {
+  fmt::print("\e[1;35m========Optitrack & Robot Initialize========\e[0m\n");
   std::vector<std::string> rigid_body_names = {"target_left", "target_right",
                                                "object"};
   std::string motive_ip = "192.168.100.103";
@@ -57,6 +58,7 @@ int main(int argc, char *argv[]) {
     fmt::print("Aubo robot Error: {}\n", e.what());
   }
   // 读取标定矩阵
+  fmt::print("\e[1;35m=========Hand Eye Calibration Data=========\e[0m\n");
   std::string left_calib_folder = "optitrack_handeye_left";
   auto T_left_bc = readEigenXdFromFile(left_calib_folder + "/T_bc.txt");
   auto T_left_et = readEigenXdFromFile(left_calib_folder + "/T_et.txt");
@@ -103,7 +105,7 @@ int main(int argc, char *argv[]) {
 
   // 测试右机器人的过程省略
   // ================================
-  fmt::print("================Control Start===============\n");
+  fmt::print("\e[1;35m================Control Start===============\e[0m\n");
   // 开始控制
   fmt::print(
       "Step 1 : Move both robot to desired position and align the object.\n");
@@ -134,13 +136,13 @@ int main(int argc, char *argv[]) {
   Eigen::MatrixXd T_left_be_current = robot_left->currentPose();
   Eigen::MatrixXd T_right_be_current = robot_right->currentPose();
 #if defined CONTEXT_MONITOR
-  std::thread server_thread(RunMonitorServer, 50051);
   {
     fmt::print("Context monitor enabled.\n");
-    REGISTER_MONITOR_VARIABLE(T_object_current);
-    REGISTER_MONITOR_VARIABLE(T_left_ct_current);
-    REGISTER_MONITOR_VARIABLE(T_right_ct_current);
+    // REGISTER_MONITOR_VARIABLE(T_object_current);
+    // REGISTER_MONITOR_VARIABLE(T_left_ct_current);
+    // REGISTER_MONITOR_VARIABLE(T_right_ct_current);
   }
+  std::thread server_thread(RunMonitorServer, 50051);
 #endif
   /********************************* */
   while (1) {
@@ -241,4 +243,8 @@ int main(int argc, char *argv[]) {
   // gogogo
   // 假设前面步骤已经完成，现在需要针对轴孔装配进行轨迹规划
   fmt::print("Step 3 : Peg in Hole.\n");
+
+#if defined CONTEXT_MONITOR
+  server_thread.join();
+#endif
 }

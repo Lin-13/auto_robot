@@ -2,7 +2,6 @@
 #include <opencv2/opencv.hpp>
 
 #pragma once
-std::pair<cv::Mat, cv::Mat> rs2getNewFrame(rs2::pipeline &pipe);
 
 cv::Ptr<cv::aruco::CharucoBoard>
 aruco_board_generate(int width = 5, int height = 7,
