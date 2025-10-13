@@ -1,7 +1,10 @@
 project(aubo_robot)
 cmake_minimum_required(VERSION 3.15)
 
-set(CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# add_compile_options(-std=c++20)
 
 # set(CMAKE_C_COMPILER "/usr/bin/clang")
 # set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
@@ -11,8 +14,6 @@ set(CXX_STANDARD 20)
 set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-z,lazy")
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-z,lazy")
-
-add_compile_options(-std=c++20)
 
 set(OpenCV4_DIR "/home/lwx/local/lib/cmake/opencv4")
 find_package(OpenCV REQUIRED PATHS ${OpenCV4_DIR} NO_DEFAULT_PATH)
@@ -36,6 +37,7 @@ link_directories(
 add_library(ft_sensor
     STATIC
     src/ft_sensor/ft_sensor.cpp
+    src/ft_sensor/force_control.cpp
 )
 target_link_libraries(ft_sensor
     PRIVATE
@@ -46,6 +48,7 @@ add_library(
     STATIC
     src/utils/opencv_utils.cpp
     src/utils/matrix_utils.cpp
+    src/utils/signal_utils.cpp
 )
 add_library(robot_interface
     STATIC
@@ -187,6 +190,13 @@ target_link_libraries(
     PRIVATE
     vrpn
     quat # vrpn的依赖
+)
+add_executable(FTSensorTest test/test_ft_sensor.cpp)
+target_link_libraries(
+    FTSensorTest
+    PRIVATE
+    ft_sensor
+    fmt::fmt
 )
 add_executable(OptitrackControl src/calib_handeye/optitrack_control.cpp)
 target_link_libraries(

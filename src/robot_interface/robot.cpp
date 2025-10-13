@@ -61,28 +61,33 @@ int Robot::MoveJoint(const Trajectory &trajectory,
   std::ranges::sort(
       traj, [](const auto &a, const auto &b) { return a.first < b.first; });
   // 启动计时器
-  std::function<int(void)> time_cb = [this, traj, log]() {
-    static double eps = 0.05;
-    static auto start_time = std::chrono::steady_clock::now();
-    auto time = std::chrono::steady_clock::now();
-    double t =
-        std::chrono::duration_cast<std::chrono::microseconds>(time - start_time)
-            .count() /
-        1.0e6;
-    if (t > traj.back().first + eps) {
-      if (log) {
-        std::cout << "MoveJoint: Stop" << std::endl;
-      }
-      return -1; // Stop Traj Timer
-    }
-    Eigen::MatrixXd pos = this->interpolate(t, traj);
-    if (log) {
-      std::cout << "MoveJoint: t = " << t << ", pos = " << pos.transpose()
-                << std::endl;
-    }
-    this->controller_->setTarget(RobotController::RobotJointState(pos));
-    return 0;
-  };
+  std::function<int(void)> time_cb =
+      [this, traj, log, cnt = 0,
+       start_time = std::chrono::steady_clock::now()]() mutable {
+        static double eps = 0.05;
+        if (cnt == 0) {
+          start_time = std::chrono::steady_clock::now();
+        }
+        cnt++;
+        auto time = std::chrono::steady_clock::now();
+        double t = std::chrono::duration_cast<std::chrono::microseconds>(
+                       time - start_time)
+                       .count() /
+                   1.0e6;
+        if (t > traj.back().first + eps) {
+          if (log) {
+            std::cout << "MoveJoint: Stop" << std::endl;
+          }
+          return -1; // Stop Traj Timer
+        }
+        Eigen::MatrixXd pos = this->interpolate(t, traj);
+        if (log) {
+          std::cout << "MoveJoint: t = " << t << ", pos = " << pos.transpose()
+                    << std::endl;
+        }
+        this->controller_->setTarget(RobotController::RobotJointState(pos));
+        return 0;
+      };
   Timer::Ptr timer = Timer::create("MoveJoint", time_cb, interval, nullptr);
   timers_.insert_or_assign("DefaultTimer", timer);
   // C++17, 若键不存在直接构造并插入，若存在则更新值
@@ -154,52 +159,58 @@ int Robot::MovePose(const Trajectory &trajectory,
   std::ranges::sort(
       traj, [](const auto &a, const auto &b) { return a.first < b.first; });
   // 启动计时器
-  std::function<int(void)> pose_time_cb = [this, traj, log]() {
-    static double eps = 0.05;
-    static Eigen::VectorXd last_joint =
-        controller_->getJointState().joint_state;
-    static auto start_time = std::chrono::steady_clock::now();
-    auto start = std::chrono::steady_clock::now();
-    double t = std::chrono::duration_cast<std::chrono::microseconds>(start -
-                                                                     start_time)
-                   .count() /
-               1.0e6;
-    Eigen::Matrix4d pos = this->interpolatePose(t, traj);
-    int ret;
-    Eigen::VectorXd pos_joint = topology_->trans_inv(pos, last_joint, &ret);
-    if (ret != 0) { // trans_inv E_NOERROR=0
-      if (log) {
-        std::cout << "MovePose: t = " << t << ", trans_inv:[\n"
-                  << pos << "]\nfailed, ret = " << ret << std::endl;
-      }
-      return -1; // stop traj timer
-    }
-    last_joint = pos_joint;
-    this->controller_->setTarget(RobotController::RobotJointState(pos_joint));
-    // 确保setTarget至少会调用一次（当traj只有t=0时）
-    if (t > traj.back().first + eps) {
-      if (log) {
-        std::cout << "MovePose: Stop" << std::endl;
-      }
-      return -1; // Stop Traj Timer
-    }
-    auto end = std::chrono::steady_clock::now();
-    if (log) {
-      std::cout << "MovePose: t = "
-                << std::chrono::duration_cast<std::chrono::microseconds>(
-                       end - start_time)
-                           .count() /
-                       1.0e6
-                << ", solve time = "
-                << std::chrono::duration_cast<std::chrono::microseconds>(end -
-                                                                         start)
-                           .count() /
-                       1.0e6
-                << "\njoint=" << pos_joint.transpose() << "\npos = \n"
-                << pos << std::endl;
-    }
-    return 0;
-  };
+  std::function<int(void)> pose_time_cb =
+      [this, traj, log, cnt = 0,
+       start_time = std::chrono::steady_clock::now()]() mutable {
+        static double eps = 0.05;
+        static Eigen::VectorXd last_joint =
+            controller_->getJointState().joint_state;
+        if (cnt == 0) {
+          start_time = std::chrono::steady_clock::now();
+        }
+        cnt++;
+        auto start = std::chrono::steady_clock::now();
+        double t = std::chrono::duration_cast<std::chrono::microseconds>(
+                       start - start_time)
+                       .count() /
+                   1.0e6;
+        Eigen::Matrix4d pos = this->interpolatePose(t, traj);
+        int ret;
+        Eigen::VectorXd pos_joint = topology_->trans_inv(pos, last_joint, &ret);
+        if (ret != 0) { // trans_inv E_NOERROR=0
+          if (log) {
+            std::cout << "MovePose: t = " << t << ", trans_inv:[\n"
+                      << pos << "]\nfailed, ret = " << ret << std::endl;
+          }
+          return -1; // stop traj timer
+        }
+        last_joint = pos_joint;
+        this->controller_->setTarget(
+            RobotController::RobotJointState(pos_joint));
+        // 确保setTarget至少会调用一次（当traj只有t=0时）
+        if (t > traj.back().first + eps) {
+          if (log) {
+            std::cout << "MovePose: Stop" << std::endl;
+          }
+          return -1; // Stop Traj Timer
+        }
+        auto end = std::chrono::steady_clock::now();
+        if (log) {
+          std::cout << "MovePose: t = "
+                    << std::chrono::duration_cast<std::chrono::microseconds>(
+                           end - start_time)
+                               .count() /
+                           1.0e6
+                    << ", solve time = "
+                    << std::chrono::duration_cast<std::chrono::microseconds>(
+                           end - start)
+                               .count() /
+                           1.0e6
+                    << "\njoint=" << pos_joint.transpose() << "\npos = \n"
+                    << pos << std::endl;
+        }
+        return 0;
+      };
   Timer::Ptr timer = Timer::create("MovePose", pose_time_cb, interval, nullptr);
   timers_.insert_or_assign("DefaultTimer", timer);
   // C++17, 若键不存在直接构造并插入，若存在则更新
