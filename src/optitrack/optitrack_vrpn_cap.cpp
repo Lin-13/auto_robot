@@ -1,9 +1,12 @@
 #include "optitrack/optitrack.h"
 #include <iomanip>
 #include <iostream>
+#include <map>
 OptiTrackRigidBodyCap::OptiTrackRigidBodyCap(
     const std::vector<std::string> &rigid_body_names,
     const std::string &motive_ip) {
+  // TODO : 临时解决方案
+  static std::map<std::string, OptiTrackRigidBodyCap *> rigidbody_names_map_;
   rigidbody_names_ = rigid_body_names;
   motive_ip_ = motive_ip;
 
@@ -17,7 +20,7 @@ OptiTrackRigidBodyCap::OptiTrackRigidBodyCap(
     Q_cams2targets_[rigidbody_names_[i]] = Eigen::Quaterniond::Identity();
     T_is_valid_[rigidbody_names_[i]] = false;
     T_mutex_[rigidbody_names_[i]] = std::make_unique<std::mutex>();
-    //   rigidbody_names_map_[i] = rigidbody_names_[i];
+    rigidbody_names_map_[rigidbody_names_[i]] = this;
   }
   thread_should_stop_ = 0;
   // 初始化VRPN Tracker
@@ -27,9 +30,11 @@ OptiTrackRigidBodyCap::OptiTrackRigidBodyCap(
     trackers_[rb_name] =
         std::make_shared<vrpn_Tracker_Remote>(connection_str.c_str());
   }
-  for (auto &tracker : trackers_) {
-    tracker.second->register_change_handler(
-        this, &OptiTrackRigidBodyCap::rigidbody_callback);
+  for (auto &[rb_name, tracker] : trackers_) {
+    // !!!
+    auto it = rigidbody_names_map_.find(rb_name);
+    tracker->register_change_handler(
+        &(*it), &OptiTrackRigidBodyCap::rigidbody_callback);
   }
 
   cap_thread_ =
@@ -73,15 +78,23 @@ OptiTrackRigidBodyCap::~OptiTrackRigidBodyCap() {
         this, &OptiTrackRigidBodyCap::rigidbody_callback);
   }
 }
+/**
+ * @brief VRPN 刚体回调函数
+ *
+ * @param user_data std::pair<const std::string, OptiTrackRigidBodyCap *>
+ * @param t vrpn_TRACKERCB
+ */
 void VRPN_CALLBACK OptiTrackRigidBodyCap::rigidbody_callback(
     void *user_data, const vrpn_TRACKERCB t) {
-
-  OptiTrackRigidBodyCap *self =
-      reinterpret_cast<OptiTrackRigidBodyCap *>(user_data);
-  // 获取刚体名称（优先使用映射表，其次用原始设备名）
-  std::string rb_name = (self->rigidbody_names_map_.count(t.sensor)
-                             ? self->rigidbody_names_map_[t.sensor]
-                             : self->current_tracker_name_);
+  std::pair<const std::string, OptiTrackRigidBodyCap *> *data =
+      reinterpret_cast<std::pair<const std::string, OptiTrackRigidBodyCap *> *>(
+          user_data);
+  OptiTrackRigidBodyCap *self = data->second;
+  std::string rb_name = data->first;
+  // std::string rb_name = self->current_tracker_name_;
+  // std::cout << "\033[1;33m[刚体 " << t.sensor << " (" << rb_name <<
+  // ")]\033[0m"
+  //           << std::endl;
 
   // DEBUG 打印数据（区分不同刚体）
   //

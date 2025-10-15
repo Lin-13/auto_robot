@@ -19,33 +19,45 @@ auto T_bc_adjust = [](Eigen::Matrix3d &R) {
 };
 auto T_et_adjust = [](Eigen::Matrix3d &R) {
   // adjustRotateInplace(R, -1, 0, -1);
-  // 调整target z轴，使其在end x轴正方向
+  // 调整target z轴，使其在end x轴正方向 ->
+  // 机器人在末端沿X+运动时，target沿Z+运动
   if (R.block<3, 1>(0, 2).dot(Eigen::Vector3d::UnitX()) < 0) {
     R.block<3, 1>(0, 2) = -R.block<3, 1>(0, 2);
     R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1);
   }
-  // 调整x轴，使其在end z轴正方向 约45度
+  // 调整target x轴，使其在end z轴正方向 ->
+  // 机器人在末端沿Z+运动时，target沿X+运动
   if (R.block<3, 1>(0, 0).dot(Eigen::Vector3d::UnitZ()) < 0) {
     R.block<3, 1>(0, 0) = -R.block<3, 1>(0, 0);
     R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1);
   }
 };
-void calib_handeye_optitrack() {
+void calib_handeye_optitrack(const std::string &robot_name,
+                             std::string target_name,
+                             std::string data_folder = "", int num_poses = 10) {
   // 初始化 OptiTrack
-  std::vector<std::string> rigid_body_names = {"target"};
+  std::vector<std::string> rigid_body_names = {target_name};
   // std::string motive_ip = "192.168.100.103";
   const std::string motive_ip = "192.168.1.172";
   OptiTrackRigidBodyCap optitrack(rigid_body_names, motive_ip);
-  Eigen::Matrix4d T_cam2target = optitrack.GetTransformcam2target("target");
+  Eigen::Matrix4d T_cam2target = optitrack.GetTransformcam2target(target_name);
   // 初始化机器人
-#ifdef CALIB_LEFT
-  std::unique_ptr<Robot> robot = auboRobotLeft();
-  std::string data_folder = "optitrack_handeye_left";
-  auto robotStartup = auboRobotLeft;
-#else
-  std::unique_ptr<Robot> robot = auboRobotRight();
-  std::string data_folder = "optitrack_handeye_right";
-#endif
+  std::unique_ptr<Robot> robot;
+  // std::string data_folder;
+  if (robot_name == "left") {
+    robot = auboRobotLeft();
+    if (data_folder.empty()) {
+      data_folder = "optitrack_handeye_left";
+    }
+  } else if (robot_name == "right") {
+    robot = auboRobotRight();
+    if (data_folder.empty()) {
+      data_folder = "optitrack_handeye_right";
+    }
+  } else {
+    fmt::print("Robot type {} not supported.\n", robot_name);
+    return;
+  }
   // std::unique_ptr<Robot> robot_right = auboRobotRight();
   // 尝试启动机器人
   try {
@@ -55,7 +67,7 @@ void calib_handeye_optitrack() {
   } catch (const std::exception &e) {
     fmt::print("Aubo robot Error: {}\n", e.what());
   }
-  int num_poses = 10;
+  // int num_poses = 10;
   std::vector<Eigen::Matrix4d> T_cam2target_list, T_base2gripper_list;
   T_cam2target_list.reserve(num_poses);
   T_base2gripper_list.reserve(num_poses);
@@ -67,7 +79,8 @@ void calib_handeye_optitrack() {
     fmt::print("====================================\n");
     fmt::print("采集第 {} 个位姿,按下回车键进行采集", i + 1);
     std::cin.get();
-    Eigen::MatrixXd T_cam2target = optitrack.GetTransformcam2target("target");
+    Eigen::MatrixXd T_cam2target =
+        optitrack.GetTransformcam2target(target_name);
     T_cam2target_list.push_back(T_cam2target);
     std::cout << "采集到的位姿: \n" << T_cam2target << std::endl;
     std::cout << " RPY: "
@@ -112,12 +125,7 @@ void calib_handeye_optitrack() {
   writeEigenXdToFile(fmt::format("{}/T_et.txt", data_folder), T[1]);
   return;
 }
-void calib_replay() {
-#ifdef CALIB_LEFT
-  std::string data_folder = "optitrack_handeye_left";
-#else
-  std::string data_folder = "optitrack_handeye_right";
-#endif
+void calib_replay(std::string data_folder) {
   if (!std::filesystem::exists(data_folder)) {
     std::cout << "数据文件夹不存在: " << data_folder << std::endl;
     return;
@@ -148,14 +156,15 @@ void calib_replay() {
   double res = 0;
   std::vector<Eigen::Matrix4d> T = calibrationHandtoEye(
       T_cam2target_list, T_base2gripper_list, T_bc_adjust, T_et_adjust, &res);
-  fmt::print("Calibration residual - se3距离度量(平方范数): {}\n",
-             sqrt(res / 2));
+  fmt::print("Calibration residual - 距离度量(平方范数): {}\n", sqrt(res / 2));
   std::cout << "T_base2camera result: \n" << T[0] << std::endl;
   std::cout << "T_end2target result: \n" << T[1] << std::endl;
   return;
 }
 int main(int argc, char **argv) {
-  // calib_handeye_optitrack();
-  calib_replay();
+  // calib_handeye_optitrack("left", "target_left", "optitrack_handeye_left");
+  calib_handeye_optitrack("right", "target_right", "optitrack_handeye_right");
+  // calib_replay("optitrack_handeye_left");
+  // calib_replay("optitrack_handeye_right");
   return 0;
 }

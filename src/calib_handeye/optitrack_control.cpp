@@ -24,11 +24,11 @@ Eigen::MatrixXd GlobalMoveToEndMove(Eigen::MatrixXd T_bc, Eigen::MatrixXd T_et,
   // 计算T_be_start
   Eigen::MatrixXd T_be_start =
       T_et.transpose()
-          .jacobiSvd()
+          .jacobiSvd(ComputefullU | Eigen::ComputeFullV)
           .solve(T_ct_start.transpose() * T_bc.transpose())
           .transpose();
   Eigen::MatrixXd T_be_end = T_et.transpose()
-                                 .jacobiSvd()
+                                 .jacobiSvd(ComputefullU | Eigen::ComputeFullV)
                                  .solve(T_ct_end.transpose() * T_bc.transpose())
                                  .transpose();
   return T_be_end * T_be_start.inverse();
@@ -82,8 +82,10 @@ int main(int argc, char *argv[]) {
   fmt::print("T_right_et : \n{}\n", T_right_et);
   // 测试标定矩阵的MSE
   // 原理：// T_bc * T_ct = T_be * T_et
-  int test_num = 1;
+  int test_num = 5;
   double mse_left = 0;
+  fmt::print("\e[1;35m========Robot Test==========\e[0m\n");
+  fmt::print("Testing left robot ...\n");
   for (int i = 0; i < test_num; i++) {
     Eigen::MatrixXd T_left_be = robot_left->currentPose();
     Eigen::MatrixXd T_left_ct = optitrack.GetTransformcam2target("target_left");
@@ -95,16 +97,47 @@ int main(int argc, char *argv[]) {
                               T_left_ct_est.block<3, 3>(0, 0))
                          .squaredNorm();
     double t_error =
-        (T_left_ct.block<3, 1>(0, 3).transpose() *
-         (T_left_ct_est.block<3, 1>(0, 3) - T_left_ct.block<3, 1>(0, 3)))
+        (T_left_ct_est.block<3, 1>(0, 3) - T_left_ct.block<3, 1>(0, 3))
             .squaredNorm();
     double gamma = 1; // 权重参数
     mse_left += so3_error + gamma * t_error;
-    std::this_thread::sleep_for(1s);
+    fmt::print("T_left_ct: \n{}\nT_left_ct_est: \n{}\n", T_left_ct,
+               T_left_ct_est);
+    fmt::print("\033[1;33mso3_error: {:.6f} deg, t_error: {:.6f}mm\033[0m\n",
+               std::sqrt(so3_error) * 180.0 / M_PI,
+               std::sqrt(t_error) * 1000.0);
+    std::this_thread::sleep_for(2s);
   }
-  fmt::print("MSE left: {:.6f}\n", mse_left / test_num);
-
-  // 测试右机器人的过程省略
+  fmt::print("\033[1;33mMSE left: {:.6f}\033[0m\n",
+             std::sqrt(mse_left / test_num));
+  // 测试右机器人
+  fmt::print("Testing right robot ...\n");
+  double mse_right = 0;
+  for (int i = 0; i < test_num; i++) {
+    Eigen::MatrixXd T_right_be = robot_right->currentPose();
+    Eigen::MatrixXd T_right_ct =
+        optitrack.GetTransformcam2target("target_right");
+    // 计算T_ct_est
+    Eigen::MatrixXd T_right_ct_est =
+        T_right_bc.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV)
+            .solve(T_right_be * T_right_et);
+    auto so3_error = SO3Toso3(T_right_ct.block<3, 3>(0, 0).transpose() *
+                              T_right_ct_est.block<3, 3>(0, 0))
+                         .squaredNorm();
+    double t_error =
+        (T_right_ct_est.block<3, 1>(0, 3) - T_right_ct.block<3, 1>(0, 3))
+            .squaredNorm();
+    double gamma = 1; // 权重参数
+    mse_right += so3_error + gamma * t_error;
+    fmt::print("T_right_ct: \n{}\nT_right_ct_est: \n{}\n", T_right_ct,
+               T_right_ct_est);
+    fmt::print("\033[1;33mso3_error: {:.6f} deg, t_error: {:.6f}mm\033[0m\n",
+               std::sqrt(so3_error) * 180.0 / M_PI,
+               std::sqrt(t_error) * 1000.0);
+    std::this_thread::sleep_for(2s);
+  }
+  fmt::print("\033[1;33mMSE right: {:.6f}\033[0m\n",
+             std::sqrt(mse_right / test_num));
   // ================================
   fmt::print("\e[1;35m================Control Start===============\e[0m\n");
   // 开始控制

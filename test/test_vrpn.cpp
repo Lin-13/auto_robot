@@ -33,8 +33,8 @@ void VRPN_CALLBACK rigidbody_callback(void *user_data, const vrpn_TRACKERCB t) {
 int main() {
   // const std::string motive_ip = "192.168.100.103";
   const std::string motive_ip = "192.168.1.172";
-  const std::vector<std::string> rigidbody_list = {"target", "object",
-                                                   "origin"};
+  const std::vector<std::string> rigidbody_list = {"target_left",
+                                                   "target_right", "origin"};
 
   std::vector<std::shared_ptr<vrpn_Tracker_Remote>> trackers;
   for (const auto &rb_name : rigidbody_list) {
