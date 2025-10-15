@@ -37,7 +37,8 @@ int main(int argc, char *argv[]) {
   fmt::print("\e[1;35m========Optitrack & Robot Initialize========\e[0m\n");
   std::vector<std::string> rigid_body_names = {"target_left", "target_right",
                                                "object"};
-  std::string motive_ip = "192.168.100.103";
+  // std::string motive_ip = "192.168.100.103";
+  const std::string motive_ip = "192.168.1.172";
   OptiTrackRigidBodyCap optitrack(rigid_body_names, motive_ip);
   Eigen::Matrix4d T_cam2target_left =
       optitrack.GetTransformcam2target("target_left");

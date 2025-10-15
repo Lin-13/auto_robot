@@ -106,7 +106,7 @@ void VRPN_CALLBACK OptiTrackRigidBodyCap::rigidbody_callback(
   //           << "z=" << std::fixed << std::setprecision(4) << t.quat[3]
   //           << std::endl;
   // std::cout << "-------------------------" << std::endl;
-  Eigen::Quaterniond Q_cam2target(t.quat[0], t.quat[1], t.quat[2], t.quat[3]);
+  Eigen::Quaterniond Q_cam2target(t.quat[3], t.quat[0], t.quat[1], t.quat[2]);
   Eigen::Vector3d t_cam2target(t.pos[0], t.pos[1], t.pos[2]);
   {
     std::unique_lock<std::mutex> lock(*self->T_mutex_[rb_name]);

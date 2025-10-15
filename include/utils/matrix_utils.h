@@ -17,6 +17,14 @@ std::vector<Eigen::Matrix4d>
 generateRandomTransformations(int n, double limit = 1.0, double norm_min = 0.1);
 int writeEigenXdToFile(const std::string &filename, const Eigen::MatrixXd &mat);
 Eigen::MatrixXd readEigenXdFromFile(const std::string &filename);
+// 李群李代数
+Eigen::Matrix3d skew(const Eigen::Vector3d &v);
+Eigen::Vector3d unskew(const Eigen::Matrix3d &skew_mat);
+
+Eigen::Vector3d SO3Toso3(const Eigen::Matrix3d &R);
+Eigen::Matrix3d so3ToSO3(const Eigen::Vector3d &so3);
+Eigen::VectorXd SE3Tose3(const Eigen::Matrix4d &T);
+Eigen::Matrix4d se3ToSE3(const Eigen::VectorXd &se3);
 
 Eigen::Matrix3d
 solveAXXBShiu(const Eigen::Matrix3d &A, const Eigen::Matrix3d &B,
@@ -50,14 +58,6 @@ calibrationHandtoEye(const std::vector<Eigen::Matrix4d> &T_c_t,
                      std::function<void(Eigen::Matrix3d &)> adjustTbc = nullptr,
                      std::function<void(Eigen::Matrix3d &)> adjustTet = nullptr,
                      double *res = nullptr);
-// 李群李代数
-Eigen::Matrix3d skew(const Eigen::Vector3d &v);
-Eigen::Vector3d unskew(const Eigen::Matrix3d &skew_mat);
-
-Eigen::Vector3d SO3Toso3(const Eigen::Matrix3d &R);
-Eigen::Matrix3d so3ToSO3(const Eigen::Vector3d &so3);
-Eigen::VectorXd SE3Tose3(const Eigen::Matrix4d &T);
-Eigen::Matrix4d se3ToSE3(const Eigen::VectorXd &se3);
 
 // 重力补偿
 double gravity_compensation(const std::vector<Eigen::Vector3d> &F_measure,

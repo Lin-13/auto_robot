@@ -290,293 +290,6 @@ int writeEigenXdToFile(const std::string &filename,
   return 0;
 }
 
-/**
- * @brief 使用Shiu的算法求解AX=XB问题
- *  TODO: 算法存在问题 输出结果未能通过测试
-    Given A and B, solve for X in the equation AX = XB using Shiu's method.
-    This function assumes A and B are proper rotation matrices (3x3).
-    The solution X is also a rotation matrix (3x3).
- *
- * @param A
- * @param B
- * @param res AX=XB 的残差(AX-XB)
- * @param adjustRotateInplace 调整旋转矩阵的函数
- * @return Eigen::Matrix3d
- */
-Eigen::Matrix3d
-solveAXXBShiu(const Eigen::Matrix3d &A, const Eigen::Matrix3d &B,
-              std::function<void(Eigen::Matrix3d &)> adjustRotateInplace,
-              double *res) {
-  Eigen::Matrix3d A_rot = A;
-  Eigen::Matrix3d B_rot = B;
-  // 计算迹
-  double trA = A_rot.trace();
-  double trB = B_rot.trace();
-
-  Eigen::Matrix3d M;
-
-  // 填充M矩阵 (根据Shiu算法推导)
-  M(0, 0) = trA + 1.0;
-  M(0, 1) = A_rot(2, 1) - A_rot(1, 2);
-  M(0, 2) = A_rot(0, 2) - A_rot(2, 0);
-
-  M(1, 0) = A_rot(2, 1) - A_rot(1, 2);
-  M(1, 1) = trA + 1.0;
-  M(1, 2) = A_rot(1, 0) - A_rot(0, 1);
-
-  M(2, 0) = A_rot(0, 2) - A_rot(2, 0);
-  M(2, 1) = A_rot(1, 0) - A_rot(0, 1);
-  M(2, 2) = trA + 1.0;
-
-  // 构建右侧向量b
-  Eigen::Vector3d b;
-  b(0) = B_rot(0, 0) - 1.0;
-  b(1) = B_rot(1, 0);
-  b(2) = B_rot(2, 0);
-
-  // 求解线性方程组M * x = b，得到旋转向量的分量
-  Eigen::Vector3d x = M.colPivHouseholderQr().solve(b);
-
-  // 从旋转向量构建旋转矩阵（使用罗德里格斯公式）
-  double theta = x.norm();
-  Eigen::Matrix3d X;
-
-  if (theta < 1e-8) {
-    // 角度接近0，返回单位矩阵
-    X = Eigen::Matrix3d::Identity();
-  } else {
-    Eigen::Vector3d u = x.normalized();
-    Eigen::Matrix3d u_hat;
-
-    // 构建反对称矩阵
-    u_hat << 0, -u(2), u(1), u(2), 0, -u(0), -u(1), u(0), 0;
-
-    // 罗德里格斯公式
-    X = Eigen::Matrix3d::Identity() + sin(theta) * u_hat +
-        (1 - cos(theta)) * u_hat * u_hat;
-  }
-  if (adjustRotateInplace != nullptr) {
-    adjustRotateInplace(X);
-  }
-  if (res != nullptr) {
-    *res = (A_rot * X - X * B_rot).norm();
-  }
-  return X;
-}
-/**
- * @brief 通过Kronecker积求解AX=XB问题
- *        该问题存在多解，该方法进保证`det(X) = 1` 需要调用者进行额外调整
- * @param A N个3x3旋转矩阵
- * @param adjustRotateInplace 调整旋转矩阵
- * @param B N个3x3旋转矩阵
- * @param res AX=XB 的残差(AX-XB)
- * @return Eigen::Matrix3d X
- */
-Eigen::Matrix3d
-solveAXXBKron(const std::vector<Eigen::Matrix3d> &A,
-              const std::vector<Eigen::Matrix3d> &B,
-              std::function<void(Eigen::Matrix3d &)> adjustRotateInplace,
-              double *res) {
-  if (A.size() != B.size() || A.empty()) {
-    throw std::invalid_argument("solveAXXBKron: A和B的数量必须相同且非空");
-  }
-  Eigen::MatrixXd M = Eigen::MatrixXd::Zero(9 * A.size(), 9);
-  for (size_t i = 0; i < A.size(); ++i) {
-    Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-    M.block<9, 9>(9 * i, 0) = Eigen::kroneckerProduct(A[i], I) -
-                              Eigen::kroneckerProduct(I, B[i].transpose());
-  }
-  // 使用SVD求解M * vec(X) = 0
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd(M, Eigen::ComputeFullV);
-  Eigen::VectorXd vecX = svd.matrixV().col(8); // 取最后一列对应最小奇异值
-  // 将vec(X)重塑为3x3矩阵X
-  Eigen::Matrix3d X;
-  X << vecX(0), vecX(1), vecX(2), vecX(3), vecX(4), vecX(5), vecX(6), vecX(7),
-      vecX(8);
-  // 确保X是一个正交矩阵（旋转矩阵）
-  Eigen::JacobiSVD<Eigen::Matrix3d> svd2(X, Eigen::ComputeFullU |
-                                                Eigen::ComputeFullV);
-  X = svd2.matrixU() * svd2.matrixV().transpose();
-  // 确保行列式为1
-  if (X.determinant() < 0) {
-    X.col(2) *= -1;
-  }
-  // auto correctRotateInplace = [](Eigen::Matrix3d &R) {
-  //   if (R.determinant() < 0) {
-  //     R.col(1) = -R.col(1);
-  //   }
-  //   // 纠正x轴指向正方向
-  //   if (R.col(0).dot(Eigen::Vector3d(1, 0, 0)) < 0) {
-  //     R.col(0) = -R.col(0);
-  //     R.col(2) = -R.col(2);
-  //   }
-  //   // 纠正Z轴指向正方向
-  //   if (R.col(2).dot(Eigen::Vector3d(0, 0, -1)) < 0) {
-  //     R.col(1) = -R.col(1);
-  //     R.col(2) = -R.col(2);
-  //   }
-  // };
-  if (adjustRotateInplace != nullptr) {
-    adjustRotateInplace(X);
-  }
-  if (res != nullptr) {
-    *res = 0;
-    for (int i = 0; i < A.size(); i++) {
-      *res += (A[i] * X - X * B[i]).norm();
-    }
-    *res = *res / A.size();
-  }
-  return X;
-}
-/**
- * @brief 通过Kronecker积求解AX=XB问题
- *        该问题存在多解，该方法进保证`det(X) = 1` 需要调用者进行额外调整
- *
- * @param A
- * @param B
- * @param correctRotateInplace 旋转矩阵的修正函数
- * @param res AX=XB 的残差(AX-XB) ,默认 nullptr
- * @return Eigen::Matrix3d
- */
-Eigen::Matrix3d
-solveAXXBKron(const Eigen::Matrix3d &A, const Eigen::Matrix3d &B,
-              std::function<void(Eigen::Matrix3d &)> adjustRotateInplace,
-              double *res) {
-  Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
-  Eigen::MatrixXd M = Eigen::MatrixXd::Zero(9, 9);
-  // 构建矩阵M
-  M = Eigen::kroneckerProduct(A, I) - Eigen::kroneckerProduct(I, B.transpose());
-  // 使用SVD求解M * vec(X) = 0
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd(M, Eigen::ComputeFullV);
-  Eigen::VectorXd vecX = svd.matrixV().col(8); // 取最后一列对应最小奇异值
-  // 将vec(X)重塑为3x3矩阵X
-  Eigen::Matrix3d X;
-  X << vecX(0), vecX(1), vecX(2), vecX(3), vecX(4), vecX(5), vecX(6), vecX(7),
-      vecX(8);
-  // 确保X是一个正交矩阵（旋转矩阵）
-  Eigen::JacobiSVD<Eigen::Matrix3d> svd2(X, Eigen::ComputeFullU |
-                                                Eigen::ComputeFullV);
-  X = svd2.matrixU() * svd2.matrixV().transpose();
-  // 确保行列式为1
-  if (X.determinant() < 0) {
-    X.col(2) *= -1;
-  }
-  if (adjustRotateInplace != nullptr) {
-    adjustRotateInplace(X);
-  }
-  if (res != nullptr) {
-    *res = 0;
-    *res = (A * X - X * B).norm();
-  }
-  return X;
-}
-
-/**
- * @brief 通过Kronecker积求解AT=TB问题(T表示齐次矩阵以区分AX=XB问题)
- * @details 通过调用 solveAXXBKron 求解AX=XB问题，
- *          然后求解平衡方程R_A*p_X + p_A = R_X * p_B +p_X
- *
- * @param R_A
- * @param p_A
- * @param R_B
- * @param p_B
- * @param adjustRotateInplace
- * @param res
- * @return Eigen::Matrix4d
- */
-Eigen::Matrix4d
-solveATTBKron(const std::vector<Eigen::Matrix3d> &R_A,
-              const std::vector<Eigen::Vector3d> &p_A,
-              const std::vector<Eigen::Matrix3d> &R_B,
-              const std::vector<Eigen::Vector3d> &p_B,
-              std::function<void(Eigen::Matrix3d &)> adjustRotateInplace,
-              double *res) {
-  auto R_X1 = solveAXXBKron(R_A, R_B, adjustRotateInplace, res);
-
-  // solve (R_Ai - I)*pX=p_A+R_X*p_B
-  Eigen::MatrixXd A = Eigen::MatrixXd::Zero(3 * R_A.size(), 3);
-  Eigen::VectorXd b = Eigen::VectorXd::Zero(3 * R_A.size());
-  auto I = Eigen::Matrix3d::Identity();
-  for (int i = 0; i < R_A.size(); i++) {
-    A.block<3, 3>(3 * i, 0) = R_A[i] - I;
-    b.block<3, 1>(3 * i, 0) = -p_A[i] + R_X1 * p_B[i];
-  }
-  // Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr_A(A);
-  // auto p_X1 = qr_A.solve(b);
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd_A(A, Eigen::ComputeFullU |
-                                                 Eigen::ComputeFullV);
-  Eigen::VectorXd p_X1 = svd_A.solve(b);
-  auto T_X1 = HomoMatrix(R_X1, p_X1);
-  return HomoMatrix(R_X1, p_X1);
-}
-
-/**
- * @brief 通过Kronecker积求解AT=TB问题
- * @details 通过将齐次坐标分解在调用solveATTBKron 函数计算
- *
- * @param T_A
- * @param T_B
- * @param adjustRotateInplace
- * @param res
- * @return Eigen::Matrix4d
- */
-Eigen::Matrix4d
-solveATTBKron(const std::vector<Eigen::Matrix4d> &T_A,
-              const std::vector<Eigen::Matrix4d> &T_B,
-              std::function<void(Eigen::Matrix3d &)> adjustRotateInplace,
-              double *res) {
-  if (T_A.size() != T_B.size() || T_B.empty()) {
-    throw std::invalid_argument("solveATTBKron: TA和TB的数量必须相同且非空");
-  }
-  std::vector<Eigen::Matrix3d> R_A, R_B;
-  std::vector<Eigen::Vector3d> p_A, p_B;
-  for (const auto &T : T_A) {
-    R_A.push_back(T.block<3, 3>(0, 0));
-    p_A.push_back(T.block<3, 1>(0, 3));
-  }
-  for (const auto &T : T_B) {
-    R_B.push_back(T.block<3, 3>(0, 0));
-    p_B.push_back(T.block<3, 1>(0, 3));
-  }
-  auto X = solveATTBKron(R_A, p_A, R_B, p_B, adjustRotateInplace, res);
-  return X;
-}
-
-/**
- * @brief 眼在手外标定，通过Kronecker积求解
- *
- * @param T_c_t 相机到工具的变换矩阵
- * @param T_b_e 基座到末端的变换矩阵
- * @param adjustTbc 对T_bc(base->相机)的修正函数
- * @param adjustTet 对T_et(相机->工具)的修正函数correctTransformInplace
- * @param res 残差指针，默认 nullptr
- * @return std::vector<Eigen::Matrix4d> {T_bc, T_et}
- */
-std::vector<Eigen::Matrix4d>
-calibrationHandtoEye(const std::vector<Eigen::Matrix4d> &T_c_t,
-                     const std::vector<Eigen::Matrix4d> &T_b_e,
-                     std::function<void(Eigen::Matrix3d &)> adjustTbc,
-                     std::function<void(Eigen::Matrix3d &)> adjustTet,
-                     double *res) {
-  if (T_c_t.size() != T_b_e.size() || T_b_e.empty()) {
-    throw std::invalid_argument(
-        "calibrationHandtoEye: T_c_t和T_b_e的数量必须相同且非空");
-  }
-  std::vector<Eigen::Matrix4d> T_ct_r, T_be_r, T_tc_r, T_eb_r;
-  for (int i = 0; i < T_c_t.size() - 1; i++) {
-    T_ct_r.push_back(T_c_t[i] * T_c_t[i + 1].inverse());
-    T_be_r.push_back(T_b_e[i] * T_b_e[i + 1].inverse());
-    T_tc_r.push_back(T_c_t[i].inverse() * T_c_t[i + 1]);
-    T_eb_r.push_back(T_b_e[i].inverse() * T_b_e[i + 1]);
-  }
-  double res_tbc = 0, res_tet = 0;
-  auto T_bc = solveATTBKron(T_be_r, T_ct_r, adjustTbc, &res_tbc);
-  auto T_et = solveATTBKron(T_eb_r, T_tc_r, adjustTet, &res_tet);
-  if (res != nullptr) {
-    *res = res_tbc + res_tet;
-  }
-  return {T_bc, T_et};
-}
 Eigen::Matrix3d skew(const Eigen::Vector3d &v) {
   Eigen::Matrix3d skew_mat = Eigen::Matrix3d::Zero();
   skew_mat << 0, -v(2), v(1), v(2), 0, -v(0), -v(1), v(0), 0;
@@ -718,6 +431,315 @@ Eigen::VectorXd SE3Tose3(const Eigen::Matrix4d &T) {
 //   lie_algebra.tail<3>() = SO3Toso3(T.block<3, 3>(0, 0));
 //   return lie_algebra;
 // }
+
+/**
+ * @brief 使用Shiu的算法求解AX=XB问题
+ *  TODO: 算法存在问题 输出结果未能通过测试
+    Given A and B, solve for X in the equation AX = XB using Shiu's method.
+    This function assumes A and B are proper rotation matrices (3x3).
+    The solution X is also a rotation matrix (3x3).
+ *
+ * @param A
+ * @param B
+ * @param res AX=XB 的残差(AX-XB)
+ * @param adjustRotateInplace 调整旋转矩阵的函数
+ * @return Eigen::Matrix3d
+ */
+Eigen::Matrix3d
+solveAXXBShiu(const Eigen::Matrix3d &A, const Eigen::Matrix3d &B,
+              std::function<void(Eigen::Matrix3d &)> adjustRotateInplace,
+              double *res) {
+  Eigen::Matrix3d A_rot = A;
+  Eigen::Matrix3d B_rot = B;
+  // 计算迹
+  double trA = A_rot.trace();
+  double trB = B_rot.trace();
+
+  Eigen::Matrix3d M;
+
+  // 填充M矩阵 (根据Shiu算法推导)
+  M(0, 0) = trA + 1.0;
+  M(0, 1) = A_rot(2, 1) - A_rot(1, 2);
+  M(0, 2) = A_rot(0, 2) - A_rot(2, 0);
+
+  M(1, 0) = A_rot(2, 1) - A_rot(1, 2);
+  M(1, 1) = trA + 1.0;
+  M(1, 2) = A_rot(1, 0) - A_rot(0, 1);
+
+  M(2, 0) = A_rot(0, 2) - A_rot(2, 0);
+  M(2, 1) = A_rot(1, 0) - A_rot(0, 1);
+  M(2, 2) = trA + 1.0;
+
+  // 构建右侧向量b
+  Eigen::Vector3d b;
+  b(0) = B_rot(0, 0) - 1.0;
+  b(1) = B_rot(1, 0);
+  b(2) = B_rot(2, 0);
+
+  // 求解线性方程组M * x = b，得到旋转向量的分量
+  Eigen::Vector3d x = M.colPivHouseholderQr().solve(b);
+
+  // 从旋转向量构建旋转矩阵（使用罗德里格斯公式）
+  double theta = x.norm();
+  Eigen::Matrix3d X;
+
+  if (theta < 1e-8) {
+    // 角度接近0，返回单位矩阵
+    X = Eigen::Matrix3d::Identity();
+  } else {
+    Eigen::Vector3d u = x.normalized();
+    Eigen::Matrix3d u_hat;
+
+    // 构建反对称矩阵
+    u_hat << 0, -u(2), u(1), u(2), 0, -u(0), -u(1), u(0), 0;
+
+    // 罗德里格斯公式
+    X = Eigen::Matrix3d::Identity() + sin(theta) * u_hat +
+        (1 - cos(theta)) * u_hat * u_hat;
+  }
+  if (adjustRotateInplace != nullptr) {
+    adjustRotateInplace(X);
+  }
+  if (res != nullptr) {
+    *res = (A_rot * X - X * B_rot).norm();
+  }
+  return X;
+}
+/**
+ * @brief 通过Kronecker积求解AX=XB问题
+ *        该问题存在多解，该方法进保证`det(X) = 1` 需要调用者进行额外调整
+ * @param A N个3x3旋转矩阵
+ * @param adjustRotateInplace 调整旋转矩阵
+ * @param B N个3x3旋转矩阵
+ * @param res AX=XB 的残差(AX-XB)
+ * @return Eigen::Matrix3d X
+ */
+Eigen::Matrix3d
+solveAXXBKron(const std::vector<Eigen::Matrix3d> &A,
+              const std::vector<Eigen::Matrix3d> &B,
+              std::function<void(Eigen::Matrix3d &)> adjustRotateInplace,
+              double *res) {
+  if (A.size() != B.size() || A.empty()) {
+    throw std::invalid_argument("solveAXXBKron: A和B的数量必须相同且非空");
+  }
+  Eigen::MatrixXd M = Eigen::MatrixXd::Zero(9 * A.size(), 9);
+  for (size_t i = 0; i < A.size(); ++i) {
+    Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+    M.block<9, 9>(9 * i, 0) = Eigen::kroneckerProduct(A[i], I) -
+                              Eigen::kroneckerProduct(I, B[i].transpose());
+  }
+  // 使用SVD求解M * vec(X) = 0
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(M, Eigen::ComputeFullV);
+  Eigen::VectorXd singularValues = svd.singularValues();
+  double min = singularValues(8);
+  double ratio = singularValues(8) / singularValues(7); // debug
+  Eigen::VectorXd vecX = svd.matrixV().col(8); // 取最后一列对应最小奇异值
+  // 将vec(X)重塑为3x3矩阵X
+  Eigen::Matrix3d X;
+  X << vecX(0), vecX(1), vecX(2), vecX(3), vecX(4), vecX(5), vecX(6), vecX(7),
+      vecX(8);
+  // 确保X是一个正交矩阵（旋转矩阵）
+  Eigen::JacobiSVD<Eigen::Matrix3d> svd2(X, Eigen::ComputeFullU |
+                                                Eigen::ComputeFullV);
+  X = svd2.matrixU() * svd2.matrixV().transpose();
+  // 确保行列式为1
+  if (X.determinant() < 0) {
+    X.col(2) *= -1;
+  }
+  // auto correctRotateInplace = [](Eigen::Matrix3d &R) {
+  //   if (R.determinant() < 0) {
+  //     R.col(1) = -R.col(1);
+  //   }
+  //   // 纠正x轴指向正方向
+  //   if (R.col(0).dot(Eigen::Vector3d(1, 0, 0)) < 0) {
+  //     R.col(0) = -R.col(0);
+  //     R.col(2) = -R.col(2);
+  //   }
+  //   // 纠正Z轴指向正方向
+  //   if (R.col(2).dot(Eigen::Vector3d(0, 0, -1)) < 0) {
+  //     R.col(1) = -R.col(1);
+  //     R.col(2) = -R.col(2);
+  //   }
+  // };
+  if (adjustRotateInplace != nullptr) {
+    adjustRotateInplace(X);
+  }
+  if (res != nullptr) {
+    *res = 0;
+    for (int i = 0; i < A.size(); i++) {
+      // *res += (A[i] * X - X * B[i]).norm();
+      *res += SO3Toso3((A[i] * X).transpose() * (X * B[i])).squaredNorm();
+    }
+    *res = *res / A.size();
+  }
+  return X;
+}
+/**
+ * @brief 通过Kronecker积求解AX=XB问题
+ *        该问题存在多解，该方法进保证`det(X) = 1` 需要调用者进行额外调整
+ *
+ * @param A
+ * @param B
+ * @param correctRotateInplace 旋转矩阵的修正函数
+ * @param res AX=XB 的残差(AX-XB) - 距离度量的平方范数,默认 nullptr
+ * @return Eigen::Matrix3d
+ */
+Eigen::Matrix3d
+solveAXXBKron(const Eigen::Matrix3d &A, const Eigen::Matrix3d &B,
+              std::function<void(Eigen::Matrix3d &)> adjustRotateInplace,
+              double *res) {
+  Eigen::Matrix3d I = Eigen::Matrix3d::Identity();
+  Eigen::MatrixXd M = Eigen::MatrixXd::Zero(9, 9);
+  // 构建矩阵M
+  M = Eigen::kroneckerProduct(A, I) - Eigen::kroneckerProduct(I, B.transpose());
+  // 使用SVD求解M * vec(X) = 0
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd(M, Eigen::ComputeFullV);
+  Eigen::VectorXd vecX = svd.matrixV().col(8); // 取最后一列对应最小奇异值
+  // 将vec(X)重塑为3x3矩阵X
+  Eigen::Matrix3d X;
+  X << vecX(0), vecX(1), vecX(2), vecX(3), vecX(4), vecX(5), vecX(6), vecX(7),
+      vecX(8);
+  // 确保X是一个正交矩阵（旋转矩阵）
+  Eigen::JacobiSVD<Eigen::Matrix3d> svd2(X, Eigen::ComputeFullU |
+                                                Eigen::ComputeFullV);
+  X = svd2.matrixU() * svd2.matrixV().transpose();
+  // 确保行列式为1
+  if (X.determinant() < 0) {
+    X.col(2) *= -1;
+  }
+  if (adjustRotateInplace != nullptr) {
+    adjustRotateInplace(X);
+  }
+  if (res != nullptr) {
+    *res = 0;
+    // *res = (A * X - X * B).norm();
+    *res = SO3Toso3((A * X).transpose() * (X * B)).squaredNorm();
+  }
+  return X;
+}
+
+/**
+ * @brief 通过Kronecker积求解AT=TB问题(T表示齐次矩阵以区分AX=XB问题)
+ * @details 通过调用 solveAXXBKron 求解AX=XB问题，
+ *          然后求解平衡方程R_A*p_X + p_A = R_X * p_B +p_X
+ *
+ * @param R_A
+ * @param p_A
+ * @param R_B
+ * @param p_B
+ * @param adjustRotateInplace
+ * @param res AX=XB 的残差(AX-XB) - 距离度量的平方范数,默认 nullptr
+ * @return Eigen::Matrix4d
+ */
+Eigen::Matrix4d
+solveATTBKron(const std::vector<Eigen::Matrix3d> &R_A,
+              const std::vector<Eigen::Vector3d> &p_A,
+              const std::vector<Eigen::Matrix3d> &R_B,
+              const std::vector<Eigen::Vector3d> &p_B,
+              std::function<void(Eigen::Matrix3d &)> adjustRotateInplace,
+              double *res) {
+  auto R_X1 = solveAXXBKron(R_A, R_B, adjustRotateInplace, res);
+
+  // solve (R_Ai - I)*pX=p_A+R_X*p_B
+  Eigen::MatrixXd A = Eigen::MatrixXd::Zero(3 * R_A.size(), 3);
+  Eigen::VectorXd b = Eigen::VectorXd::Zero(3 * R_A.size());
+  auto I = Eigen::Matrix3d::Identity();
+  for (int i = 0; i < R_A.size(); i++) {
+    A.block<3, 3>(3 * i, 0) = R_A[i] - I;
+    b.block<3, 1>(3 * i, 0) = -p_A[i] + R_X1 * p_B[i];
+  }
+  // Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr_A(A);
+  // auto p_X1 = qr_A.solve(b);
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd_A(A, Eigen::ComputeFullU |
+                                                 Eigen::ComputeFullV);
+  Eigen::VectorXd p_X1 = svd_A.solve(b);
+  auto T_X1 = HomoMatrix(R_X1, p_X1);
+  double residual = 0, rot_residual = 0, trans_residual = 0;
+  for (int i = 0; i < R_A.size(); i++) {
+    rot_residual +=
+        SO3Toso3((R_A[i] * R_X1).transpose() * (R_X1 * R_B[i])).squaredNorm();
+    trans_residual +=
+        (R_A[i] * p_X1 + p_A[i] - R_X1 * p_B[i] - p_X1).squaredNorm();
+  }
+  rot_residual = rot_residual / R_A.size();
+  trans_residual = trans_residual / R_A.size();
+  double deg_error = std::sqrt(rot_residual) * 180 / M_PI;
+  double trans_error = std::sqrt(trans_residual);
+  residual += rot_residual + trans_residual;
+  // residual = residual / R_A.size();
+  if (res != nullptr) {
+    *res = residual;
+  }
+  return HomoMatrix(R_X1, p_X1);
+}
+
+/**
+ * @brief 通过Kronecker积求解AT=TB问题
+ * @details 通过将齐次坐标分解在调用solveATTBKron 函数计算
+ *
+ * @param T_A
+ * @param T_B
+ * @param adjustRotateInplace
+ * @param res
+ * @return Eigen::Matrix4d
+ */
+Eigen::Matrix4d
+solveATTBKron(const std::vector<Eigen::Matrix4d> &T_A,
+              const std::vector<Eigen::Matrix4d> &T_B,
+              std::function<void(Eigen::Matrix3d &)> adjustRotateInplace,
+              double *res) {
+  if (T_A.size() != T_B.size() || T_B.empty()) {
+    throw std::invalid_argument("solveATTBKron: TA和TB的数量必须相同且非空");
+  }
+  std::vector<Eigen::Matrix3d> R_A, R_B;
+  std::vector<Eigen::Vector3d> p_A, p_B;
+  for (const auto &T : T_A) {
+    R_A.push_back(T.block<3, 3>(0, 0));
+    p_A.push_back(T.block<3, 1>(0, 3));
+  }
+  for (const auto &T : T_B) {
+    R_B.push_back(T.block<3, 3>(0, 0));
+    p_B.push_back(T.block<3, 1>(0, 3));
+  }
+  auto X = solveATTBKron(R_A, p_A, R_B, p_B, adjustRotateInplace, res);
+  return X;
+}
+
+/**
+ * @brief 眼在手外标定，通过Kronecker积求解
+ *
+ * @param T_c_t 相机到工具的变换矩阵
+ * @param T_b_e 基座到末端的变换矩阵
+ * @param adjustTbc 对T_bc(base->相机)的修正函数
+ * @param adjustTet 对T_et(相机->工具)的修正函数correctTransformInplace
+ * @param res 残差指针，默认 nullptr
+ * @return std::vector<Eigen::Matrix4d> {T_bc, T_et}
+ */
+std::vector<Eigen::Matrix4d>
+calibrationHandtoEye(const std::vector<Eigen::Matrix4d> &T_c_t,
+                     const std::vector<Eigen::Matrix4d> &T_b_e,
+                     std::function<void(Eigen::Matrix3d &)> adjustTbc,
+                     std::function<void(Eigen::Matrix3d &)> adjustTet,
+                     double *res) {
+  if (T_c_t.size() != T_b_e.size() || T_b_e.empty()) {
+    throw std::invalid_argument(
+        "calibrationHandtoEye: T_c_t和T_b_e的数量必须相同且非空");
+  }
+  std::vector<Eigen::Matrix4d> T_ct_r, T_be_r, T_tc_r, T_eb_r;
+  for (int i = 0; i < T_c_t.size() - 1; i++) {
+    T_ct_r.push_back(T_c_t[i] * T_c_t[i + 1].inverse());
+    T_be_r.push_back(T_b_e[i] * T_b_e[i + 1].inverse());
+    T_tc_r.push_back(T_c_t[i].inverse() * T_c_t[i + 1]);
+    T_eb_r.push_back(T_b_e[i].inverse() * T_b_e[i + 1]);
+  }
+  double res_tbc = 0, res_tet = 0;
+  auto T_bc = solveATTBKron(T_be_r, T_ct_r, adjustTbc, &res_tbc);
+  auto T_et = solveATTBKron(T_eb_r, T_tc_r, adjustTet, &res_tet);
+  if (res != nullptr) {
+    *res = res_tbc + res_tet;
+  }
+  return {T_bc, T_et};
+}
 
 /**
  * @brief 重力补偿
