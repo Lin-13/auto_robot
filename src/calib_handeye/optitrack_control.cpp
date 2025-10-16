@@ -4,7 +4,7 @@
 #include "utils/matrix_utils.h"
 #include "utils/utils.h"
 #include <fmt/format.h>
-#define CONTEXT_MONITOR
+// #define CONTEXT_MONITOR
 #ifdef CONTEXT_MONITOR
 #include "context_monitor/monitor_server.h"
 #endif
@@ -24,14 +24,31 @@ Eigen::MatrixXd GlobalMoveToEndMove(Eigen::MatrixXd T_bc, Eigen::MatrixXd T_et,
   // 计算T_be_start
   Eigen::MatrixXd T_be_start =
       T_et.transpose()
-          .jacobiSvd(ComputefullU | Eigen::ComputeFullV)
+          .jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV)
           .solve(T_ct_start.transpose() * T_bc.transpose())
           .transpose();
-  Eigen::MatrixXd T_be_end = T_et.transpose()
-                                 .jacobiSvd(ComputefullU | Eigen::ComputeFullV)
-                                 .solve(T_ct_end.transpose() * T_bc.transpose())
-                                 .transpose();
-  return T_be_end * T_be_start.inverse();
+  Eigen::MatrixXd T_be_end =
+      T_et.transpose()
+          .jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV)
+          .solve(T_ct_end.transpose() * T_bc.transpose())
+          .transpose();
+  Eigen::MatrixXd T_move_rel = T_be_start.inverse() * T_be_end;
+  Eigen::MatrixXd T_move = T_be_start * T_move_rel * T_be_start.inverse();
+  // Eigen::MatrixXd T_move = T_be_end * T_be_start.inverse();
+  // debug
+  // fmt::print("\e[1;33mGlobalMoveToEndMove\e[0m::T_be_start: \n{}\n",
+  //            T_be_start);
+  // fmt::print("RPY:{}\n",
+  //            RotToRPY(T_be_start.block<3, 3>(0, 0)).transpose() * 180 /
+  //            M_PI);
+  // fmt::print("\e[1;33mGlobalMoveToEndMove\e[0m::T_be_end: \n{}\n", T_be_end);
+  // fmt::print("RPY:{}\n",
+  //            RotToRPY(T_be_end.block<3, 3>(0, 0)).transpose() * 180 / M_PI);
+  // fmt::print("\e[1;33mGlobalMoveToEndMove\e[0m::T_move: \n{}\n", T_move);
+  // fmt::print("RPY:{}\n",
+  //            RotToRPY(T_move.block<3, 3>(0, 0)).transpose() * 180 / M_PI);
+  // fmt::print("Check\n{}", (T_move * T_be_start - T_be_end).norm());
+  return T_move;
 }
 int main(int argc, char *argv[]) {
   fmt::print("\e[1;35m========Optitrack & Robot Initialize========\e[0m\n");
@@ -82,7 +99,7 @@ int main(int argc, char *argv[]) {
   fmt::print("T_right_et : \n{}\n", T_right_et);
   // 测试标定矩阵的MSE
   // 原理：// T_bc * T_ct = T_be * T_et
-  int test_num = 5;
+  int test_num = 2;
   double mse_left = 0;
   fmt::print("\e[1;35m========Robot Test==========\e[0m\n");
   fmt::print("Testing left robot ...\n");
@@ -134,7 +151,7 @@ int main(int argc, char *argv[]) {
     fmt::print("\033[1;33mso3_error: {:.6f} deg, t_error: {:.6f}mm\033[0m\n",
                std::sqrt(so3_error) * 180.0 / M_PI,
                std::sqrt(t_error) * 1000.0);
-    std::this_thread::sleep_for(2s);
+    std::this_thread::sleep_for(1s);
   }
   fmt::print("\033[1;33mMSE right: {:.6f}\033[0m\n",
              std::sqrt(mse_right / test_num));
@@ -151,14 +168,6 @@ int main(int argc, char *argv[]) {
   T_end2tcp.block<3, 1>(0, 3) =
       Eigen::Vector3d(0, 0, 0.25); //通过测量得到大概关系
   auto T_tcp2end = T_end2tcp.inverse();
-  // 编程预设值 ，其和锥桶的直径等参数相关
-  // TODO: 通过力信息建立连接，当前通过相对位置关系建立TCP
-  Eigen::Matrix4d T_left_tcp_rel = Eigen::Matrix4d::Identity();
-  T_left_tcp_rel.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
-  T_left_tcp_rel.block<3, 1>(0, 3) = Eigen::Vector3d(0.25, 0, -0.1);
-  Eigen::Matrix4d T_right_tcp_rel = Eigen::Matrix4d::Identity();
-  T_right_tcp_rel.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
-  T_right_tcp_rel.block<3, 1>(0, 3) = Eigen::Vector3d(0.25, 0, -0.1);
 
   // 状态容器初始化
   /********************************** */
@@ -169,6 +178,15 @@ int main(int argc, char *argv[]) {
       optitrack.GetTransformcam2target("target_right");
   Eigen::MatrixXd T_left_be_current = robot_left->currentPose();
   Eigen::MatrixXd T_right_be_current = robot_right->currentPose();
+  // 编程预设值 ，其和锥桶的直径等参数相关
+  // TODO: 通过力信息建立连接，当前通过相对位置关系建立TCP
+  // 需要注意optitrack坐标系+Y向上，ROBOT中+Z向上
+  Eigen::Matrix4d T_left_tcp_rel = Eigen::Matrix4d::Identity();
+  // T_left_tcp_rel.block<3, 3>(0, 0) = T_left_ct_current.block<3, 3>(0, 0);
+  T_left_tcp_rel.block<3, 1>(0, 3) = Eigen::Vector3d(0.20, 0.25, 0);
+  Eigen::Matrix4d T_right_tcp_rel = Eigen::Matrix4d::Identity();
+  // T_right_tcp_rel.block<3, 3>(0, 0) = T_right_ct_current.block<3, 3>(0, 0);
+  T_right_tcp_rel.block<3, 1>(0, 3) = Eigen::Vector3d(-0.20, 0.25, 0);
 #if defined CONTEXT_MONITOR
   {
     fmt::print("Context monitor enabled.\n");
@@ -182,8 +200,8 @@ int main(int argc, char *argv[]) {
   while (1) {
     Eigen::MatrixXd T_left_ct_des, T_right_ct_des;
     T_object_current = optitrack.GetTransformcam2target("object");
-    T_object_current.block<3, 3>(0, 0) =
-        Eigen::Matrix3d::Identity(); // 物体姿态对齐到相机坐标系
+    T_object_current.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
+    // 物体姿态对齐到相机坐标系
 
     // T_tcp 相机坐标中的位姿
     // T_et * T_target_tcp = T_e_tcp
@@ -193,32 +211,54 @@ int main(int argc, char *argv[]) {
     Eigen::Matrix4d T_right_tcp = T_object_current * T_right_tcp_rel;
     T_left_ct_des = T_left_tcp * T_tcp2end * T_left_et;
     T_right_ct_des = T_right_tcp * T_tcp2end * T_right_et;
+    // DEBUG ：强制des的方向与current相同，只移动位置
+    T_left_ct_des.block<3, 3>(0, 0) = T_left_ct_current.block<3, 3>(0, 0);
+    T_right_ct_des.block<3, 3>(0, 0) = T_right_ct_current.block<3, 3>(0, 0);
+    fmt::print("T_left_ct_des: \n{}\nT_right_ct_des: \n{}\n", T_left_ct_des,
+               T_right_ct_des);
     // 移动到该位置
     // left
     T_left_ct_current = optitrack.GetTransformcam2target("target_left");
     Eigen::MatrixXd T_left_be_move = GlobalMoveToEndMove(
-        T_left_tcp, T_left_et, T_left_ct_current, T_left_ct_des);
-    Robot::Trajectory left_traj = {{1, T_left_be_move}};
+        T_left_bc, T_left_et, T_left_ct_current, T_left_ct_des);
+    Robot::Trajectory left_traj = {{10, T_left_be_move}};
     // right
     T_right_ct_current = optitrack.GetTransformcam2target("target_right");
     Eigen::MatrixXd T_right_be_move = GlobalMoveToEndMove(
-        T_right_tcp, T_right_et, T_right_ct_current, T_right_ct_des);
-    Robot::Trajectory right_traj = {{1, T_right_be_move}};
+        T_right_bc, T_right_et, T_right_ct_current, T_right_ct_des);
+    Robot::Trajectory right_traj = {{10, T_right_be_move}};
     // Move
+    fmt::print("Left : \nStart at T_left_be_current: \n{}\nEnd at "
+               "T_left_be_move: \n{}\n",
+               T_left_be_current, T_left_be_move);
+    fmt::print("Right : \nStart at T_right_be_current: \n{}\nEnd at "
+               "T_right_be_move: \n{}\n",
+               T_right_be_current, T_right_be_move);
     robot_left->MovePoseRelative(left_traj, 20ms, 0, 0);
     robot_right->MovePoseRelative(right_traj, 20ms, 0, 0);
     robot_left->startTimer();
     robot_right->startTimer();
-    std::this_thread::sleep_for(1s);
+    // std::this_thread::sleep_for(11s);
+    for (int i = 0; i < 12; i++) {
+      std::this_thread::sleep_for(1s);
+      fmt::print("\e[1;32mPose=>{}s :\n\e[0m", i + 1);
+      fmt::print("Current T_left_ct_current: \n{}\n",
+                 optitrack.GetTransformcam2target("target_left"));
+      fmt::print("Current T_right_ct_current: \n{}\n",
+                 optitrack.GetTransformcam2target("target_right"));
+    }
     // 更新Rel TCP, 懒得更新了，TODO 时候再写
     T_left_tcp_rel = T_left_tcp_rel;
     T_right_tcp_rel = T_right_tcp_rel;
-
     // 当检测到抓紧时跳出循环 ，同上懒得写了
     if (1 /* 检测是否加紧 */) {
       break;
     }
   }
+#ifdef CONTEXT_MONITOR
+  server_thread.join();
+#endif
+  // return 0;
   // 下一步，提起锥桶
   fmt::print("Step 2 : Raise the bucket.\n");
   // 为了确保机器人之间保持相对位置关系，需要在se3中进行插值
@@ -251,8 +291,10 @@ int main(int argc, char *argv[]) {
     robot_right->startTimer();
   };
   while (1) {
+    // 固定的TCP
     Eigen::MatrixXd virtualTCP_des = virtualTCP;
-    virtualTCP_des(2, 3) = virtualTCP(2, 3) + 0.1;
+    // Or 动态的TCP
+
     // auto T_left_ct_des = virtualTCP_des * T_vtcp_target_left;
     // auto T_right_ct_des = virtualTCP_des * T_vtcp_target_right;
     // T_left_ct_current = optitrack.GetTransformcam2target("target_left");
@@ -269,9 +311,30 @@ int main(int argc, char *argv[]) {
     // robot_left->startTimer();
     // robot_right->startTimer();
     VirtualTCPMove(virtualTCP_des);
-    std::this_thread::sleep_for(1s);
+    std::this_thread::sleep_for(1.1s);
     if (1) {
       break;
+    }
+  }
+  // ! 1000s
+  T_object_current = optitrack.GetTransformcam2target("object");
+  for (int i = 0; i < 10000; i++) {
+    std::this_thread::sleep_for(100ms);
+    if (optitrack.IsTransformValid("object") == false) {
+      fmt::print("\e[1;31mLost the object tracking.\e[0m\n");
+      continue;
+    }
+    T_object_current = optitrack.GetTransformcam2target("object");
+    Eigen::MatrixXd virtualTCP_des = T_object_current;
+    virtualTCP_des(1, 3) = virtualTCP(1, 3) + 0.1; // 上升0.1m
+    VirtualTCPMove(virtualTCP_des);
+    if (i % 10 == 0) {
+      fmt::print("\e[1;32mPose=>{}s :\n\e[0m", i / 10 + 1);
+      fmt::print("Current T_obj: \n{}\n", T_object_current);
+      fmt::print("Current T_left_ct: \n{}\n",
+                 optitrack.GetTransformcam2target("target_left"));
+      fmt::print("Current T_right_ct: \n{}\n",
+                 optitrack.GetTransformcam2target("target_right"));
     }
   }
   // gogogo

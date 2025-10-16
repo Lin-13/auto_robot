@@ -206,8 +206,11 @@ int Robot::MovePose(const Trajectory &trajectory,
                            end - start)
                                .count() /
                            1.0e6
-                    << "\njoint=" << pos_joint.transpose() << "\npos = \n"
-                    << pos << std::endl;
+                    << "\njoint=" << pos_joint.transpose() * 180 / M_PI
+                    << "\npos = \n"
+                    << pos << "\nRPY="
+                    << RotToRPY(pos.block<3, 3>(0, 0)).transpose() * 180 / M_PI
+                    << std::endl;
         }
         return 0;
       };
