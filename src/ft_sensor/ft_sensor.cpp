@@ -248,11 +248,13 @@ bool FTSensor::getCalibrationData() {
     std::cout << message_header()
               << "Sucessfully retrieved counts per torque : " << resp_.cpt
               << std::endl;
+    return true;
   } else {
     std::cerr << message_header()
               << "Using default counts per force : " << resp_.cpf << std::endl;
     std::cerr << message_header()
               << "Using default counts per torque : " << resp_.cpt << std::endl;
+    return false;
   }
 }
 

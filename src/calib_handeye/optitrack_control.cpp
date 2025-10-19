@@ -255,9 +255,9 @@ int main(int argc, char *argv[]) {
       break;
     }
   }
-#ifdef CONTEXT_MONITOR
-  server_thread.join();
-#endif
+  // #ifdef CONTEXT_MONITOR
+  //   server_thread.join();
+  // #endif
   // return 0;
   // 下一步，提起锥桶
   fmt::print("Step 2 : Raise the bucket.\n");
@@ -293,7 +293,6 @@ int main(int argc, char *argv[]) {
   while (1) {
     // 固定的TCP
     Eigen::MatrixXd virtualTCP_des = virtualTCP;
-    // Or 动态的TCP
 
     // auto T_left_ct_des = virtualTCP_des * T_vtcp_target_left;
     // auto T_right_ct_des = virtualTCP_des * T_vtcp_target_right;
@@ -319,6 +318,7 @@ int main(int argc, char *argv[]) {
   // ! 1000s
   T_object_current = optitrack.GetTransformcam2target("object");
   for (int i = 0; i < 10000; i++) {
+    // Or 动态的TCP
     std::this_thread::sleep_for(100ms);
     if (optitrack.IsTransformValid("object") == false) {
       fmt::print("\e[1;31mLost the object tracking.\e[0m\n");

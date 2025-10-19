@@ -50,6 +50,10 @@ int AdmittanceController<T>::setPositionUpdate(
   thread_stop_ = 0;
   position_update_thread_ = std::thread([this, position_updater]() {
     while (thread_stop_ == 0) {
+      if (position_update_start_ == 0) {
+        std::this_thread::sleep_for(p_dt_);
+        continue;
+      }
       if (position_data_.size() < 3 || force_data_.empty()) {
         continue;
       }
