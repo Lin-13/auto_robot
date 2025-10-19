@@ -196,6 +196,9 @@ target_link_libraries(
     FTSensorTest
     PRIVATE
     ft_sensor
+    utils
+    context_monitor
+    aubo
     fmt::fmt
 )
 add_executable(OptitrackControl src/calib_handeye/optitrack_control.cpp)

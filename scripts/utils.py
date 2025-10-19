@@ -2,6 +2,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+def draw_vector(ax, pos, vec, color="k", label=""):
+    """绘制从pos指向pos+vec的向量"""
+    ax.quiver(
+        pos[0],
+        pos[1],
+        pos[2],
+        vec[0],
+        vec[1],
+        vec[2],
+        color=color,
+        label=label,
+    )
+    if label:
+        ax.text(
+            pos[0] + vec[0],
+            pos[1] + vec[1],
+            pos[2] + vec[2],
+            label,
+            color=color,
+            fontsize=8,
+        )
+    return ax
+
+
 def draw_coordinate_system(ax, T, length=1.0, label=""):
     """简化的坐标系绘制函数，包含坐标系名称显示"""
     # 提取平移和旋转分量
