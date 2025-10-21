@@ -1,5 +1,4 @@
 #include "robot_interface/robot.h"
-#include "robot.h"
 #include <iostream>
 #include <utils/matrix_utils.h> // interplotePose
 Robot::Robot(std::shared_ptr<RobotController> robot_controller,

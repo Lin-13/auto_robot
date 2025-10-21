@@ -38,6 +38,7 @@ add_library(ft_sensor
     STATIC
     src/ft_sensor/ft_sensor.cpp
     src/ft_sensor/force_control.cpp
+    src/ft_sensor/ft_calib.cpp
 )
 target_link_libraries(ft_sensor
     PRIVATE
