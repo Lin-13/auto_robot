@@ -29,6 +29,12 @@ public:
   int MovePoseRelative(const Trajectory &trajectory,
                        std::chrono::milliseconds interval = 100ms, int log = 0,
                        int start_now = 1);
+  int MoveJointTo(const Eigen::VectorXd &joint_state,
+                  std::chrono::milliseconds interval = 100ms, int log = 0,
+                  int start_now = 1);
+  int MoveJointToPose(const Eigen::MatrixXd &pose,
+                      std::chrono::milliseconds interval = 100ms, int log = 0,
+                      int start_now = 1);
   std::string checkTrajectoryType(const Trajectory &trajectory);
   RobotTopology::Ptr topology() const { return topology_; }
   RobotController::Ptr controller() const { return controller_; }
@@ -66,6 +72,11 @@ public:
    * @param enable 0:disable 1:enable
    */
   void interpolatePoseInSE3(bool enable = 1) { interpolate_se3 = enable; }
+  /**
+   * @brief 定时器计数器,所有计时器共用
+   * this->timer_count++;
+   */
+  std::atomic<int> timer_count = 0;
 
 private:
   int enable = 0; //使能标志位

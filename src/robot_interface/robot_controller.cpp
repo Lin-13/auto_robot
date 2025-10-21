@@ -32,6 +32,7 @@ RobotController::RobotJointState RobotController::getJointState() {
  * @return int
  */
 int RobotController::timer_cb() {
+  this->timer_count++;
   // 从getJointState()获取当前关节状态
   static auto start = std::chrono::steady_clock::now();
   auto t = std::chrono::duration_cast<std::chrono::duration<double>>(

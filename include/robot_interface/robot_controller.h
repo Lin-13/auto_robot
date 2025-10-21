@@ -57,6 +57,11 @@ public:
   virtual int setTarget(RobotJointState target_joint_state);
   virtual RobotJointState getTarget();
   virtual ~RobotController();
+  /**
+   * @brief 定时器计数器
+   *
+   */
+  std::atomic<int> timer_count = 0;
 
 protected:
   /**

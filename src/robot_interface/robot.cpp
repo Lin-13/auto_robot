@@ -1,4 +1,5 @@
 #include "robot_interface/robot.h"
+#include "robot.h"
 #include <iostream>
 #include <utils/matrix_utils.h> // interplotePose
 Robot::Robot(std::shared_ptr<RobotController> robot_controller,
@@ -68,6 +69,7 @@ int Robot::MoveJoint(const Trajectory &trajectory,
         if (cnt == 0) {
           start_time = std::chrono::steady_clock::now();
         }
+        this->timer_count++;
         cnt++;
         auto time = std::chrono::steady_clock::now();
         double t = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -168,6 +170,7 @@ int Robot::MovePose(const Trajectory &trajectory,
         if (cnt == 0) {
           start_time = std::chrono::steady_clock::now();
         }
+        this->timer_count++;
         cnt++;
         auto start = std::chrono::steady_clock::now();
         double t = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -288,6 +291,18 @@ int Robot::MovePoseRelative(const Trajectory &trajectory,
     }
   }
   return MovePose(traj, interval, log, start_now);
+}
+int Robot::MoveJointTo(const Eigen::VectorXd &joint_state,
+                       std::chrono::milliseconds interval, int log,
+                       int start_now) {
+  throw std::runtime_error("Not implemented yet");
+  return 0;
+}
+int Robot::MoveJointToPose(const Eigen::MatrixXd &pose,
+                           std::chrono::milliseconds interval, int log,
+                           int start_now) {
+  throw std::runtime_error("Not implemented yet");
+  return 0;
 }
 /**
  * @brief 检查轨迹是否合法
