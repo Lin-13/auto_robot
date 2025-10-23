@@ -294,13 +294,16 @@ int Robot::MovePoseRelative(const Trajectory &trajectory,
 int Robot::MoveJointTo(const Eigen::VectorXd &joint_state,
                        std::chrono::milliseconds interval, int log,
                        int start_now) {
-  throw std::runtime_error("Not implemented yet");
+  this->controller_->setTarget(RobotController::RobotJointState(joint_state));
   return 0;
 }
 int Robot::MoveJointToPose(const Eigen::MatrixXd &pose,
                            std::chrono::milliseconds interval, int log,
                            int start_now) {
-  throw std::runtime_error("Not implemented yet");
+  Eigen::VectorXd joint =
+      this->topology_->trans_inv(pose, this->currentJointState());
+  this->controller_->setTarget(RobotController::RobotJointState(joint));
+  // throw std::runtime_error("Not implemented yet");
   return 0;
 }
 /**

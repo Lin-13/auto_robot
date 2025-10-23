@@ -24,6 +24,11 @@ Eigen::VectorXd decompose_force(const Eigen::Matrix3d &R,
                                 const Eigen::VectorXd &wrench,
                                 const FTParams &params);
 /***************************==FTSensorGravityCompensation==***********************************/
+// constructor : sensor_ip, calib_file
+// bindPoseDetector : 绑定位姿检测函数，返回位姿矩阵
+// getPose : 获取当前位姿
+// getWrench : 获取当前力矩
+// getCompensatedWrench : 获取补偿后的力矩
 class FTSensorGravityCompensation {
 public:
   FTSensorGravityCompensation(const string sensor_ip, const string calib_file) {
@@ -36,6 +41,12 @@ public:
     sensor_ = sensor;
     params_ = read_gravity_calib_data(calib_file);
   }
+  /**
+   * @brief 获取FT传感器
+   *
+   * @return std::shared_ptr<ati::FTSensor>
+   */
+  std::shared_ptr<ati::FTSensor> getSensor() { return sensor_; }
   /**
    * @param pose_callback return R or T
    * @return int 0表示成功，-1表示失败

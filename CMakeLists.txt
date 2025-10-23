@@ -202,6 +202,13 @@ target_link_libraries(
     aubo
     fmt::fmt
 )
+add_executable(FTControl test/test_ft_control.cpp)
+target_link_libraries(FTControl
+    PRIVATE
+    ft_sensor
+    utils
+    aubo
+)
 add_executable(OptitrackControl src/calib_handeye/optitrack_control.cpp)
 target_link_libraries(
     OptitrackControl
