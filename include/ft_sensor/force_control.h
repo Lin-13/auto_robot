@@ -55,22 +55,23 @@ public:
       }
     } else if constexpr (std::is_base_of_v<Eigen::EigenBase<CoefType>,
                                            CoefType>) {
-      if (m.rows() != m.cols() || !m.isPositiveDefinite()) {
-        throw std::invalid_argument("质量矩阵必须是正定方阵");
+      if (m.rows() != m.cols()) {
+        throw std::invalid_argument("M error");
       }
-      if (kv.rows() != kv.cols() || !kv.isPositiveSemidefinite()) {
-        throw std::invalid_argument("阻尼矩阵必须是半正定方阵");
+      if (kv.rows() != kv.cols()) {
+        throw std::invalid_argument("Kv error");
       }
-      if (k.rows() != k.cols() || !k.isPositiveSemidefinite()) {
-        throw std::invalid_argument("刚度矩阵必须是半正定方阵");
+      if (k.rows() != k.cols()) {
+        throw std::invalid_argument("K error");
       }
     }
     if constexpr (std::is_base_of_v<Eigen::EigenBase<T>, T> &&
                   std::is_base_of_v<Eigen::EigenBase<CoefType>, CoefType>) {
-      static_assert(T::RowsAtCompileTime == CoefType::ColsAtCompileTime,
-                    "T的行数（维度）必须与CoefType的列数匹配");
-      static_assert(CoefType::RowsAtCompileTime == CoefType::ColsAtCompileTime,
-                    "CoefType必须是方阵");
+      // static_assert(T::RowsAtCompileTime == CoefType::ColsAtCompileTime,
+      //               "T的行数（维度）必须与CoefType的列数匹配");
+      // static_assert(CoefType::RowsAtCompileTime ==
+      // CoefType::ColsAtCompileTime,
+      //               "CoefType必须是方阵");
     }
   }
 
@@ -201,7 +202,7 @@ public:
     const T F_ext = f.value - desired_force_;
     T a_d;
     if constexpr (std::is_base_of_v<Eigen::EigenBase<T>, T>) {
-      a_d = (F_ext - kv_ * v - k_ * (p.value - desired_pos_)) * m_.inverse();
+      a_d = m_.inverse() * (F_ext - kv_ * v - k_ * (p.value - desired_pos_));
     } else {
       a_d = (F_ext - kv_ * v - k_ * (p.value - desired_pos_)) / m_;
     }
@@ -218,19 +219,23 @@ public:
 
     return 0;
   }
-
-  /**
-   * @brief 设置期望力
-   * @param desired_force 新的期望力值
-   */
+  // get set
+  T getPos() {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    return p_sensor_.back().value;
+  }
+  T getDesiredForce() {
+    std::lock_guard<std::mutex> lock(param_mutex_);
+    return desired_force_;
+  }
+  T getDesiredPos() {
+    std::lock_guard<std::mutex> lock(param_mutex_);
+    return desired_pos_;
+  }
   void setDesiredForce(T desired_force) {
     std::lock_guard<std::mutex> lock(param_mutex_);
     desired_force_ = desired_force;
   }
-  /**
-   * @brief 设置期望位置
-   * @param desired_pos 新的期望位置值
-   */
   void setDesiredPos(T desired_pos) {
     std::lock_guard<std::mutex> lock(param_mutex_);
     desired_pos_ = desired_pos;
