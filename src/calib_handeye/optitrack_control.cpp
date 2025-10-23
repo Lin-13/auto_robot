@@ -63,8 +63,8 @@ int main(int argc, char *argv[]) {
       optitrack.GetTransformcam2target("target_right");
   Eigen::Matrix4d T_cam2object = optitrack.GetTransformcam2target("object");
   // 初始化机器人
-  std::unique_ptr<Robot> robot_left = auboRobotLeft();
-  std::unique_ptr<Robot> robot_right = auboRobotRight();
+  auto robot_left = auboRobotLeft();
+  auto robot_right = auboRobotRight();
   try {
     if (robot_left->start(30ms) != 0) {
       fmt::print("Aubo robot left start failed.\n");

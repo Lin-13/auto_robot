@@ -59,7 +59,7 @@ RobotTopology::Ptr auboRobotTopology() {
   aubo->setToolFrame("tool0", tool_frame);
   return aubo;
 }
-std::unique_ptr<Robot> auboRobotLeft(std::chrono::milliseconds timer_period,
+std::shared_ptr<Robot> auboRobotLeft(std::chrono::milliseconds timer_period,
                                      ControllerConfig config) {
   auto robot_topology = auboRobotTopology();
   auto robot_controller = std::make_shared<AuboController>(
@@ -68,11 +68,11 @@ std::unique_ptr<Robot> auboRobotLeft(std::chrono::milliseconds timer_period,
   if (ret != 0) {
     std::cerr << "auboRobotLeft : Failed to initialize left robot controller"
               << std::endl;
-    return std::make_unique<Robot>(nullptr, robot_topology);
+    return std::make_shared<Robot>(nullptr, robot_topology);
   }
-  return std::make_unique<Robot>(robot_controller, robot_topology);
+  return std::make_shared<Robot>(robot_controller, robot_topology);
 }
-std::unique_ptr<Robot> auboRobotRight(std::chrono::milliseconds timer_period,
+std::shared_ptr<Robot> auboRobotRight(std::chrono::milliseconds timer_period,
                                       ControllerConfig config) {
   auto robot_topology = auboRobotTopology();
   auto robot_controller = std::make_shared<AuboController>(
@@ -81,7 +81,7 @@ std::unique_ptr<Robot> auboRobotRight(std::chrono::milliseconds timer_period,
   if (ret != 0) {
     std::cerr << "auboRobotRight : Failed to initialize right robot controller"
               << std::endl;
-    return std::make_unique<Robot>(nullptr, robot_topology);
+    return std::make_shared<Robot>(nullptr, robot_topology);
   }
-  return std::make_unique<Robot>(robot_controller, robot_topology);
+  return std::make_shared<Robot>(robot_controller, robot_topology);
 }

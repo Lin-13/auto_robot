@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
   cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_SILENT);
 
   // start up aubo robot
-  std::unique_ptr<Robot> robot = auboRobotLeft();
+  auto robot = auboRobotLeft();
   // robot->controller();
   // 1. 尝试启动机器人
   try {

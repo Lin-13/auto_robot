@@ -7,11 +7,14 @@
 #include <chrono>
 #include <filesystem>
 #include <fmt/ranges.h>
+#include <string>
 #include <thread>
 #include <unordered_map>
+using std::string;
 constexpr char LEFT_ATI_IP[] = "192.168.1.111";
 constexpr char RIGHT_ATI_IP[] = "192.168.1.112";
 using FTParams = std::unordered_map<std::string, Eigen::Vector3d>;
+/*****************************************==Utils==*****************************************/
 FTParams read_gravity_calib_data(const std::string &filename);
 
 int write_gravity_calib_data(const std::string &filename,
@@ -20,6 +23,58 @@ int write_gravity_calib_data(const std::string &filename,
 Eigen::VectorXd decompose_force(const Eigen::Matrix3d &R,
                                 const Eigen::VectorXd &wrench,
                                 const FTParams &params);
+/***************************==FTSensorGravityCompensation==***********************************/
+class FTSensorGravityCompensation {
+public:
+  FTSensorGravityCompensation(const string sensor_ip, const string calib_file) {
+    sensor_ = std::make_shared<ati::FTSensor>();
+    sensor_->init(sensor_ip);
+    params_ = read_gravity_calib_data(calib_file);
+  }
+  FTSensorGravityCompensation(std::shared_ptr<ati::FTSensor> sensor,
+                              const string calib_file) {
+    sensor_ = sensor;
+    params_ = read_gravity_calib_data(calib_file);
+  }
+  /**
+   * @param pose_callback return R or T
+   * @return int 0表示成功，-1表示失败
+   */
+  int bindPoseDetector(std::function<Eigen::MatrixXd(void)> pose_callback) {
+    pose_callback_ = pose_callback;
+    return 0;
+  }
+  /**
+   * @brief 获取当前位姿
+   *
+   * @return Eigen::MatrixXd 4x4
+   */
+  Eigen::MatrixXd getPose() {
+    if (!pose_callback_) {
+      return Eigen::MatrixXd::Identity(4, 4);
+    } else {
+      return pose_callback_();
+    }
+  }
+  Eigen::VectorXd getWrench() {
+    Eigen::Vector<double, 6> wrench;
+    sensor_->getMeasurements(wrench.data());
+    return wrench;
+  }
+  Eigen::VectorXd getCompensatedWrench() {
+    Eigen::Vector<double, 6> wrench = getWrench();
+    Eigen::MatrixXd pose = getPose();
+    decompose_force(pose.block<3, 3>(0, 0), wrench, params_);
+    return wrench;
+  }
+
+  ~FTSensorGravityCompensation() = default;
+
+private:
+  std::shared_ptr<ati::FTSensor> sensor_;
+  FTParams params_;
+  std::function<Eigen::MatrixXd(void)> pose_callback_;
+};
 
 /*****************************************==Test==*****************************************/
 /**

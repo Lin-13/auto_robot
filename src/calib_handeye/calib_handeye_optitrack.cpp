@@ -42,7 +42,7 @@ void calib_handeye_optitrack(const std::string &robot_name,
   OptiTrackRigidBodyCap optitrack(rigid_body_names, motive_ip);
   Eigen::Matrix4d T_cam2target = optitrack.GetTransformcam2target(target_name);
   // 初始化机器人
-  std::unique_ptr<Robot> robot;
+  std::shared_ptr<Robot> robot;
   // std::string data_folder;
   if (robot_name == "left") {
     robot = auboRobotLeft();

@@ -37,7 +37,7 @@ int main() {
   cv::utils::logging::setLogLevel(cv::utils::logging::LOG_LEVEL_SILENT);
 
   // start up aubo robot
-  std::unique_ptr<Robot> robot = auboRobotLeft();
+  auto robot = auboRobotLeft();
   // 尝试启动机器人
   try {
     if (robot->start(30ms) != 0) {
