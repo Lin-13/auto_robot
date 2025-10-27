@@ -1,5 +1,8 @@
 #include <Eigen/Core>
+#include <condition_variable>
 #include <deque>
+#include <thread>
+#include <vector>
 using std::deque;
 using std::vector;
 namespace SignalFilterType {
@@ -31,32 +34,13 @@ deque<double> signalFilter(const deque<double> &input,
  */
 class ButterworthFilter {
 public:
-  ButterworthFilter(double cutoff_freq, double sample_freq, int order = 2)
-      : order_(order), initialized_(false) {
-    if (order < 1 || order > MAX_ORDER) {
-      throw std::invalid_argument("Filter order must be between 1 and " +
-                                  std::to_string(MAX_ORDER));
-    }
-
-    // 动态分配系数和历史数组
-    b_.resize(order_ + 1, 0.0);
-    a_.resize(order_ + 1, 0.0);
-    x_history_.resize(order_ + 1, 0.0);
-    y_history_.resize(order_ + 1, 0.0);
-
-    calculateCoefficients(cutoff_freq, sample_freq, order);
-    reset();
-  }
+  ButterworthFilter(double cutoff_freq, double sample_freq, int order = 2);
 
   // 滤波单个样本
   double filter(double input);
 
   // 重置滤波器状态
-  void reset() {
-    std::fill(x_history_.begin(), x_history_.end(), 0.0);
-    std::fill(y_history_.begin(), y_history_.end(), 0.0);
-    initialized_ = false;
-  }
+  void reset();
 
   // 获取滤波器信息
   int getOrder() const;
@@ -122,27 +106,15 @@ public:
   double getLatestHybridValue();
 
   // 重置高阶BUSF滤波器
-  void resetFilter() {
-    std::lock_guard<std::mutex> lock(mtx_);
-    busf_filter_.reset();
-  }
+  void resetFilter();
 
   // 获取缓冲区状态
-  size_t getHighSpeedBufferSize() const {
-    std::lock_guard<std::mutex> lock(mtx_);
-    return high_speed_buffer_.size();
-  }
+  size_t getHighSpeedBufferSize() const;
 
-  size_t getLowSpeedBufferSize() const {
-    std::lock_guard<std::mutex> lock(low_speed_mtx_);
-    return low_speed_buffer_.size();
-  }
+  size_t getLowSpeedBufferSize() const;
 
   // 获取采样统计信息
-  size_t getTotalSampleCount() const {
-    std::lock_guard<std::mutex> lock(mtx_);
-    return sample_count_;
-  }
+  size_t getTotalSampleCount() const;
 
 private:
   // 内部数据处理函数

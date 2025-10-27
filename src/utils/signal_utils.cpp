@@ -37,7 +37,7 @@ deque<double> signalFilter(const deque<double> &input,
 /******************************ButterworthFilter*********************************/
 // 滤波单个样本
 ButterworthFilter::ButterworthFilter(double cutoff_freq, double sample_freq,
-                                     int order = 2)
+                                     int order)
     : order_(order), initialized_(false) {
   if (order < 1 || order > MAX_ORDER) {
     throw std::invalid_argument("Filter order must be between 1 and " +
@@ -193,9 +193,8 @@ void ButterworthFilter::normalizeCoefficients() {
  * @param sample_freq 采样频率 (Hz)
  * @param order 滤波器阶数 (支持1-10阶)
  */
-DownSampleFilter::DownSampleFilter(size_t factor = 20,
-                                   double cutoff_freq = 25.0,
-                                   int filter_order = 4)
+DownSampleFilter::DownSampleFilter(size_t factor, double cutoff_freq,
+                                   int filter_order)
     : factor_(factor), running_(false), sample_count_(0),
       busf_filter_(cutoff_freq, 1000.0, filter_order) {
   latest_value_.store(0.0);
