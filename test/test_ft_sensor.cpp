@@ -231,6 +231,59 @@
 //   }
 //   return 0;
 // }
+//
+// ! 标定步骤：
+// * 1、先将机器人运动到零位，然后运行test_left,test_gravity_compensation会setbias
+// * 2、通过monitor_client将signal置1,此时程序会记录此刻的传感器数据和机器人位姿，重复
+// * 3、得到的标定参数会保存到gravity_compensation/{left/right}.txt中
+// * 4、需要注意标定参数的f0和m0是在标定时的零位确定的，使用时同样需要将至于相同零位后setBias,此时f0和m0才是正确的
+// * 5、标定和使用时要记得R_sensor
+// * 6、重力标定和补偿后的力旋量依然不严格等于0,不同位姿其残差不同，原因在于最小二乘的残差
+//
+void test_left(int &signal) {
+  std::shared_ptr<ati::FTSensor> sensor = std::make_shared<ati::FTSensor>();
+  sensor->init(LEFT_ATI_IP);
+  std::shared_ptr<Robot> robot = auboRobotLeft();
+  // calib
+  // !!! R_sensor
+  Eigen::Matrix3d R_sensor =
+      Eigen::AngleAxisd(-165.0 * M_PI / 180, Eigen::Vector3d::UnitZ())
+          .toRotationMatrix();
+  // 重力标定
+  sensor->setBias();
+  auto params = test_gravity_compensation(signal, sensor, robot, R_sensor, 5);
+  write_gravity_calib_data("gravity_compensation/left.txt", params);
+  // use calib data
+  auto data = read_gravity_calib_data("gravity_compensation/left.txt");
+  fmt::print("Read data from gravity_compensation/left.txt\n");
+  fmt::print("L: {}\n", data["L"]);
+  fmt::print("G_W: {}\n", data["G_W"]);
+  fmt::print("f0: {}\n", data["f0"]);
+  fmt::print("m0: {}\n", data["m0"]);
+  test_gravity_decompensation(sensor, robot, R_sensor, data);
+}
+void test_right(int &signal) {
+  std::shared_ptr<ati::FTSensor> sensor = std::make_shared<ati::FTSensor>();
+  sensor->init(RIGHT_ATI_IP);
+  std::shared_ptr<Robot> robot = auboRobotRight();
+  // calib
+  // !!! R_sensor
+  Eigen::Matrix3d R_sensor =
+      Eigen::AngleAxisd(15.0 * M_PI / 180, Eigen::Vector3d::UnitZ())
+          .toRotationMatrix();
+  // 重力标定
+  sensor->setBias();
+  auto params = test_gravity_compensation(signal, sensor, robot, R_sensor, 5);
+  write_gravity_calib_data("gravity_compensation/right.txt", params);
+  // use calib data
+  auto data = read_gravity_calib_data("gravity_compensation/right.txt");
+  fmt::print("Read data from gravity_compensation/right.txt\n");
+  fmt::print("L: {}\n", data["L"]);
+  fmt::print("G_W: {}\n", data["G_W"]);
+  fmt::print("f0: {}\n", data["f0"]);
+  fmt::print("m0: {}\n", data["m0"]);
+  test_gravity_decompensation(sensor, robot, R_sensor, data);
+}
 int main() {
   // test_ft_sensor();
   // test io
@@ -240,20 +293,8 @@ int main() {
   Eigen::Matrix4d local_transform = Eigen::Matrix4d::Identity();
   REGISTER_MONITOR_VARIABLE(local_transform);
   // init device
-  std::shared_ptr<ati::FTSensor> sensor = std::make_shared<ati::FTSensor>();
-  sensor->init(RIGHT_ATI_IP);
-  std::shared_ptr<Robot> robot = auboRobotRight();
-  // calib
-  auto params = test_gravity_compensation(signal, sensor, robot, 5);
-  write_gravity_calib_data("gravity_compensation/right.txt", params);
-  // use calib data
-  auto data = read_gravity_calib_data("gravity_compensation/right.txt");
-  fmt::print("Read data from gravity_compensation/right.txt\n");
-  fmt::print("L: {}\n", data["L"]);
-  fmt::print("G_W: {}\n", data["G_W"]);
-  fmt::print("f0: {}\n", data["f0"]);
-  fmt::print("m0: {}\n", data["m0"]);
-  test_gravity_decompensation(sensor, robot, data);
+  // test_left(signal);
+  test_right(signal);
   fmt::print("Press Ctrl+C to stop server\n");
   server_thread.join();
   return 0;

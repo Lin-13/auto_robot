@@ -125,16 +125,20 @@ int test_ft_sensor() {
 }
 std::unordered_map<std::string, Eigen::Vector3d>
 test_gravity_compensation(int &signal, std::shared_ptr<ati::FTSensor> sensor,
-                          std::shared_ptr<Robot> robot, int count) {
-  fmt::print("FTSensor Setbias.\n");
+                          std::shared_ptr<Robot> robot,
+                          Eigen::Matrix3d R_sensor, int count) {
   // 初始化FT传感器
   // 初始化机器人
-  sensor->setBias();
+  // ----------
+  // fmt::print("FTSensor Setbias.\n");
+  // sensor->setBias(); // *该行为应当由外部完成
   fmt::print("Calibrate start.\n");
-  std::vector<double> sensor_measurements(6);
-  std::vector<std::vector<double>> sensor_data;
+  Eigen::VectorXd sensor_measurements(6);
   std::vector<Eigen::Matrix3d> R_data;
-  sensor_data.reserve(count);
+  std::vector<Eigen::Vector3d> F_measure, M_measure;
+  Eigen::Vector3d L, G_W, f0, m0;
+  F_measure.reserve(count);
+  M_measure.reserve(count);
   for (int i = 0; i < count; i++) {
     fmt::print("=== Calibrating {}/{} ===\n", i + 1, count);
     fmt::print("Wait signal...\n");
@@ -142,22 +146,43 @@ test_gravity_compensation(int &signal, std::shared_ptr<ati::FTSensor> sensor,
       std::this_thread::sleep_for(100ms);
     }
     signal = 0;
-    sensor->getMeasurements<double>(sensor_measurements.data());
+    for (int t = 0; t < 100; t++) {
+      Eigen::VectorXd sensor_t(6);
+      sensor->getMeasurements<double>(sensor_t.data());
+      sensor_measurements += sensor_t;
+      std::this_thread::sleep_for(1ms);
+    }
+    sensor_measurements /= 100.0;
     Eigen::MatrixXd R = robot->currentPose().block<3, 3>(0, 0);
+    R = R * R_sensor;
     // Eigen::Matrix3d R = Eigen::Matrix3d::Identity();
     R_data.push_back(R);
-    fmt::print("measurements: {}\n", sensor_measurements);
+    // fmt::print("measurements: {}\n", sensor_measurements);
+    std::cout << "measurements : \n"
+              << sensor_measurements.transpose() << std::endl;
     // fmt::print("R: {}\n", R);
-    std::cout << R << std::endl;
-    sensor_data.push_back(sensor_measurements);
+    std::cout << "R: \n" << R << std::endl;
+    std::cout << "RPY : " << RotToRPY(R).transpose() * 180 / M_PI << std::endl;
+    F_measure.push_back({sensor_measurements[0], sensor_measurements[1],
+                         sensor_measurements[2]});
+    M_measure.push_back({sensor_measurements[3], sensor_measurements[4],
+                         sensor_measurements[5]});
+    if (i >= 2) {
+      gravity_compensation(F_measure, M_measure, R_data, L, G_W, f0, m0);
+      fmt::print("===Calibration result===\n");
+      fmt::print("L: {}\n", L);
+      fmt::print("G_W: {}\n", G_W);
+      fmt::print("f0: {}\n", f0);
+      fmt::print("m0: {}\n", m0);
+    }
   }
   fmt::print("Gravity compensation start.\n");
-  std::vector<Eigen::Vector3d> F_measure, M_measure;
-  for (const auto &data : sensor_data) {
-    F_measure.push_back({data[0], data[1], data[2]});
-    M_measure.push_back({data[3], data[4], data[5]});
-  }
-  Eigen::Vector3d L, G_W, f0, m0;
+
+  // for (const auto &data : sensor_data) {
+  //   F_measure.push_back({data[0], data[1], data[2]});
+  //   M_measure.push_back({data[3], data[4], data[5]});
+  // }
+
   gravity_compensation(F_measure, M_measure, R_data, L, G_W, f0, m0);
   fmt::print("===Calibration result===\n");
   fmt::print("L: {}\n", L);
@@ -170,6 +195,7 @@ test_gravity_compensation(int &signal, std::shared_ptr<ati::FTSensor> sensor,
 }
 int test_gravity_decompensation(std::shared_ptr<ati::FTSensor> sensor,
                                 std::shared_ptr<Robot> robot,
+                                Eigen::Matrix3d R_sensor,
                                 const FTParams &params) {
   fmt::print("Read data from params.\n");
   fmt::print("L: {}\n", params.at("L"));
@@ -191,13 +217,16 @@ int test_gravity_decompensation(std::shared_ptr<ati::FTSensor> sensor,
                    1000.0);
     Eigen::Vector<double, 6> wrench(6);
     sensor->getMeasurements<double>(wrench.data());
-    fmt::print("wrench: {}\n", wrench);
     Eigen::Matrix3d R = robot->currentPose().block<3, 3>(0, 0);
+    R = R * R_sensor;
     new_wrench = decompose_force(R, wrench, params);
     force_point = new_wrench;
     force_point.tail<3>() = new_wrench.head<3>().cross(new_wrench.tail<3>()) /
                             new_wrench.head<3>().squaredNorm();
+    fmt::print("wrench: {}\n", wrench);
     fmt::print("new_wrench: {}\n", new_wrench);
+    std::cout << "R: \n" << R << std::endl;
+    std::cout << "RPY : " << RotToRPY(R).transpose() * 180 / M_PI << std::endl;
     fmt::print("force_point: {}\n", force_point);
   }
   return 0;

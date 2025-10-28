@@ -778,29 +778,36 @@ double gravity_compensation(const std::vector<Eigen::Vector3d> &F_measure,
     R_0.block<3, 3>(i * 3, 0) = R_i[i].transpose();
     R_0.block<3, 3>(i * 3, 3) = Eigen::Matrix3d::Identity();
   }
+  double cond = R_0.jacobiSvd().singularValues()(5) /
+                R_0.jacobiSvd().singularValues()(0); // debug
+  double rank = R_0.jacobiSvd().rank();              // debug
   Eigen::VectorXd x =
       R_0.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV).solve(F);
   Eigen::Vector3d G_w_estimate = x.head<3>();
   Eigen::Vector3d f_0_estimate = x.tail<3>();
 
   // 然后通过方程组M_measure[i] = L cross (R_{i}^T * G_w) +m_0
-  // 改写为 M_measure[i] = (F_measure[i] - f_0_estimate) * [L] + m_0
+  // 改写为 M_measure[i] = - skew(F_measure[i] - f_0_estimate) * L + m_0
   // 同样求解L,m_0
   Eigen::VectorXd M = Eigen::VectorXd::Zero(M_measure.size() * 3);
   for (int i = 0; i < M_measure.size(); ++i) {
     M.block<3, 1>(i * 3, 0) = M_measure[i];
   }
-  Eigen::VectorXd F_1 = Eigen::VectorXd::Zero(F_measure.size() * 3);
-  for (int i = 0; i < F_measure.size(); ++i) {
-    F_1.block<3, 1>(i * 3, 0) = F_measure[i] - f_0_estimate;
-  }
+  // Eigen::VectorXd F_1 = Eigen::VectorXd::Zero(F_measure.size() * 3);
+  // for (int i = 0; i < F_measure.size(); ++i) {
+  //   F_1.block<3, 1>(i * 3, 0) = F_measure[i] - f_0_estimate;
+  //   F_1.block<3, 1>(i * 3, 0) = R_i[i].transpose() * G_w_estimate;
+  // }
   Eigen::MatrixXd R_1 = Eigen::MatrixXd::Zero(F_measure.size() * 3, 6);
   for (int i = 0; i < F_measure.size(); ++i) {
-    R_1.block<3, 3>(i * 3, 0) = skew(F_1.block<3, 1>(i * 3, 0));
+    R_1.block<3, 3>(i * 3, 0) = -skew(F_measure[i] - f_0_estimate);
     R_1.block<3, 3>(i * 3, 3) = Eigen::Matrix3d::Identity();
   }
   Eigen::VectorXd x_1 =
       R_1.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV).solve(M);
+  double cond1 = R_1.jacobiSvd().singularValues()(5) /
+                 R_1.jacobiSvd().singularValues()(0); // debug
+  double rank1 = R_1.jacobiSvd().rank();              // debug
   Eigen::Vector3d L_estimate = x_1.head<3>();
   Eigen::Vector3d m_0_estimate = x_1.tail<3>();
   // 计算残差

@@ -98,20 +98,25 @@ int test_ft_sensor();
  * @brief 测试重力补偿
  *
  * @param signal 信号量，用于触发校准
- * @param sensor_name 传感器名称，left或right
- * @param data_folder 标定数据文件夹，默认gravity_compensation
+ * @param sensor 传感器指针
+ * @param robot 机器人指针
+ * @param R_sensor 传感器相对于末端执行器的旋转矩阵
+ * @param count 校准数据数量，默认3
  * @return int 0表示成功，-1表示失败
  */
 std::unordered_map<std::string, Eigen::Vector3d>
 test_gravity_compensation(int &signal, std::shared_ptr<ati::FTSensor> sensor,
-                          std::shared_ptr<Robot> robot, int count = 3);
+                          std::shared_ptr<Robot> robot,
+                          Eigen::Matrix3d R_sensor, int count = 3);
 /**
  * @brief 测试重力分解
- *
- * @param sensor_name 传感器名称，left或right
- * @param data_folder 标定数据文件夹，默认gravity_compensation
+ * @param sensor 传感器指针
+ * @param robot 机器人指针
+ * @param R_sensor 传感器相对于末端执行器的旋转矩阵
+ * @param params 重力补偿参数
  * @return int 0表示成功，-1表示失败
  */
 int test_gravity_decompensation(
     std::shared_ptr<ati::FTSensor> sensor, std::shared_ptr<Robot> robot,
+    Eigen::Matrix3d R_sensor,
     const std::unordered_map<std::string, Eigen::Vector3d> &params);
