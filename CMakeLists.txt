@@ -241,6 +241,15 @@ target_link_libraries(
     # ${GTEST_LIBRARIES}
     # GTest::gtest_main
 )
+add_executable(FilterTest test/test_signal_filter.cpp)
+target_link_libraries(
+    FilterTest
+    PRIVATE
+    utils
+
+    ${GTEST_LIBRARIES}
+    GTest::gtest_main
+)
 
 # Google Test
 enable_testing()

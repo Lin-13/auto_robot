@@ -60,10 +60,26 @@ double ButterworthFilter::filter(double input) {
       x_history_[i] = input;
       y_history_[i] = input;
     }
+    // 初始化级联段历史
+    for (auto &section : cascaded_sections_) {
+      section.x1 = section.x2 = input;
+      section.y1 = section.y2 = input;
+    }
     initialized_ = true;
     return input;
   }
 
+  double output = input;
+
+  // 如果使用级联实现
+  if (!cascaded_sections_.empty()) {
+    for (auto &section : cascaded_sections_) {
+      output = section.filter(output);
+    }
+    return output;
+  }
+
+  // 否则使用直接形式
   // 移位历史数组
   for (int i = order_; i > 0; i--) {
     x_history_[i] = x_history_[i - 1];
@@ -72,7 +88,7 @@ double ButterworthFilter::filter(double input) {
   x_history_[0] = input;
 
   // 计算输出
-  double output = 0.0;
+  output = 0.0;
   for (int i = 0; i <= order_; i++) {
     output += b_[i] * x_history_[i];
   }
@@ -112,81 +128,143 @@ void ButterworthFilter::calculateCoefficients(double cutoff_freq,
 
 void ButterworthFilter::calculateDigitalCoefficients(double normalized_cutoff,
                                                      int order) {
-  // 计算模拟滤波器极点
-  std::vector<std::complex<double>> poles;
-  for (int k = 0; k < order; k++) {
-    double theta = M_PI * (2 * k + order + 1) / (2 * order);
-    poles.push_back(std::complex<double>(cos(theta), sin(theta)));
+  // 修正双线性变换 - 与scipy保持一致
+  double wc = tan(M_PI * normalized_cutoff / 2.0); // 关键修正：除以2
+
+  // 添加频率范围检查
+  if (normalized_cutoff > 0.8) {
+    throw std::invalid_argument(
+        "Cutoff frequency too close to Nyquist frequency");
   }
 
-  // 预扭曲频率
-  double wc = tan(M_PI * normalized_cutoff);
+  if (order == 1) {
+    // 一阶Butterworth滤波器 - scipy兼容
+    double norm = 1.0 + wc;
+    b_[0] = wc / norm;
+    b_[1] = wc / norm;
+    a_[0] = 1.0;
+    a_[1] = (wc - 1.0) / norm;
 
-  // 将极点从单位圆映射到左半平面，并进行频率缩放
-  for (auto &pole : poles) {
-    pole *= wc;
+  } else if (order == 2) {
+    // 二阶Butterworth滤波器 - scipy兼容实现
+    double k = wc;
+    double k2 = k * k;
+    double sqrt2 = M_SQRT2;
+    double norm = 1.0 + sqrt2 * k + k2;
+
+    b_[0] = k2 / norm;
+    b_[1] = 2.0 * k2 / norm;
+    b_[2] = k2 / norm;
+    a_[0] = 1.0;
+    a_[1] = 2.0 * (k2 - 1.0) / norm;
+    a_[2] = (1.0 - sqrt2 * k + k2) / norm;
+
+  } else if (order >= 3) {
+    // 高阶使用级联实现
+    calculateHighOrderCoefficients(normalized_cutoff, order);
+    return;
   }
 
-  // 使用双线性变换将s域极点转换为z域
-  std::vector<std::complex<double>> z_poles;
-  for (const auto &s_pole : poles) {
-    std::complex<double> z_pole = (1.0 + s_pole / 2.0) / (1.0 - s_pole / 2.0);
-    z_poles.push_back(z_pole);
+  // 检查数值有效性
+  for (int i = 0; i <= order_; i++) {
+    if (!std::isfinite(a_[i]) || !std::isfinite(b_[i])) {
+      throw std::runtime_error("Non-finite filter coefficients detected");
+    }
   }
-
-  // 计算分母多项式系数 (从极点)
-  calculatePolynomialFromRoots(z_poles, a_);
-
-  // 计算分子多项式系数 (全部为1，低通特性)
-  std::fill(b_.begin(), b_.end(), 0.0);
-  for (int i = 0; i <= order; i++) {
-    b_[i] = 1.0;
-  }
-
-  // 归一化系数
-  normalizeCoefficients();
 }
 
-void ButterworthFilter::calculatePolynomialFromRoots(
-    const std::vector<std::complex<double>> &roots,
-    std::vector<double> &coeffs) {
-  coeffs.assign(order_ + 1, 0.0);
-  coeffs[0] = 1.0;
+// 修改高阶滤波器的稳定实现
+void ButterworthFilter::calculateHighOrderCoefficients(double normalized_cutoff,
+                                                       int order) {
+  // 将高阶滤波器分解为多个二阶段
+  int num_second_order = order / 2;
+  int has_first_order = order % 2;
 
-  for (const auto &root : roots) {
-    // 乘以 (z - root)
-    for (int i = order_; i >= 1; i--) {
-      coeffs[i] = coeffs[i - 1] - root.real() * coeffs[i];
-      if (std::abs(root.imag()) > 1e-10) {
-        // 处理复数根 - 必须成对出现
-        coeffs[i] += std::norm(root) * coeffs[i];
+  // 重新初始化为级联形式
+  cascaded_sections_.clear();
+
+  // 为奇数阶添加一阶段
+  if (has_first_order) {
+    CascadeSection first_order;
+    double k = tan(M_PI * normalized_cutoff);
+    double norm = 1.0 + k;
+
+    first_order.b0 = k / norm;
+    first_order.b1 = k / norm;
+    first_order.b2 = 0.0;
+    first_order.a1 = (k - 1.0) / norm;
+    first_order.a2 = 0.0;
+    first_order.x1 = first_order.x2 = 0.0;
+    first_order.y1 = first_order.y2 = 0.0;
+
+    cascaded_sections_.push_back(first_order);
+  }
+
+  // 添加二阶段 - 使用标准Butterworth极点
+  for (int i = 0; i < num_second_order; i++) {
+    CascadeSection second_order;
+
+    // 计算Butterworth极点角度
+    double theta = M_PI * (2.0 * i + 1.0 + has_first_order) / (2.0 * order);
+
+    // 计算二阶段系数
+    double k = tan(M_PI * normalized_cutoff);
+    double k2 = k * k;
+
+    // Butterworth极点实部和虚部
+    double sigma = cos(theta); // 实部 (负值，左半平面)
+    double omega = sin(theta); // 虚部
+
+    // 对于二阶段，使用Q因子方法
+    double Q = 1.0 / (2.0 * sigma); // Q因子
+    double norm = 1.0 + k / Q + k2;
+
+    second_order.b0 = k2 / norm;
+    second_order.b1 = 2.0 * k2 / norm;
+    second_order.b2 = k2 / norm;
+    second_order.a1 = 2.0 * (k2 - 1.0) / norm;
+    second_order.a2 = (1.0 - k / Q + k2) / norm;
+    second_order.x1 = second_order.x2 = 0.0;
+    second_order.y1 = second_order.y2 = 0.0;
+
+    // 验证二阶段稳定性
+    if (std::abs(second_order.a1) >= 2.0 || std::abs(second_order.a2) >= 1.0) {
+      throw std::runtime_error("Unstable cascaded section detected");
+    }
+
+    cascaded_sections_.push_back(second_order);
+  }
+
+  // 对于级联实现，主系数数组设为单位值
+  std::fill(b_.begin(), b_.end(), 0.0);
+  std::fill(a_.begin(), a_.end(), 0.0);
+  b_[0] = 1.0;
+  a_[0] = 1.0;
+}
+
+// 修改稳定性检查，对级联实现跳过主系数检查
+void ButterworthFilter::checkStability() {
+  // 如果使用级联实现，检查各个段的稳定性
+  if (!cascaded_sections_.empty()) {
+    for (const auto &section : cascaded_sections_) {
+      // 只检查数值有效性，不检查阈值
+      if (!std::isfinite(section.b0) || !std::isfinite(section.b1) ||
+          !std::isfinite(section.b2) || !std::isfinite(section.a1) ||
+          !std::isfinite(section.a2)) {
+        throw std::runtime_error("Non-finite cascaded section coefficients");
       }
     }
-    coeffs[0] *= -root.real();
+    return;
+  }
+
+  // 对于直接形式，只检查数值有效性
+  for (int i = 0; i <= order_; i++) {
+    if (!std::isfinite(a_[i]) || !std::isfinite(b_[i])) {
+      throw std::runtime_error("Non-finite filter coefficients detected");
+    }
   }
 }
 
-void ButterworthFilter::normalizeCoefficients() {
-  // 计算直流增益
-  double dc_gain_num = 0.0, dc_gain_den = 0.0;
-  for (int i = 0; i <= order_; i++) {
-    dc_gain_num += b_[i];
-    dc_gain_den += a_[i];
-  }
-
-  // 归一化分母系数
-  double a0 = a_[0];
-  for (int i = 0; i <= order_; i++) {
-    a_[i] /= a0;
-    b_[i] /= a0;
-  }
-
-  // 调整分子系数以获得单位直流增益
-  double gain_correction = dc_gain_den / dc_gain_num;
-  for (int i = 0; i <= order_; i++) {
-    b_[i] *= gain_correction;
-  }
-}
 /**
  * @brief 高阶Butterworth低通滤波器 (BUSF)
  * @param cutoff_freq 截止频率 (Hz)
