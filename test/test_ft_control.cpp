@@ -70,14 +70,27 @@ int main() {
       std::make_shared<BaseController3d>(robot, ft_gravity_compensation, tree);
   ft_gravity_compensation->setSoftBias();
   // force
+  static double x = 0.0;
+  REGISTER_MONITOR_VARIABLE(x);
   for (int i = 0;; i++) {
     PROFILE();
     auto start = std::chrono::steady_clock::now();
     hybrid_control->updateOnce(); // ****
     std::this_thread::sleep_until(start + 20ms);
+    // 基坐标系下的force
     monitor_force =
         robot->currentPose().block<3, 3>(0, 0) *
         ft_gravity_compensation->getCompensatedWrench().block<3, 1>(0, 0);
+    x = 0.02 * i * 0.05;
+    x = std::clamp(x, -0.05, 0.05);
+    if (monitor_force.x() > -40.0) {
+      hybrid_control->setDesiredPos(Eigen::Vector3d(x, 0, 0));
+    } else {
+      hybrid_control->setDesiredForce(Eigen::Vector3d(-40, 0, 0));
+    }
+    // double fx = 0.02 * i * 10;
+    // fx = std::clamp(fx, -10.0, 10.0);
+    // hybrid_control->setDesiredForce(Eigen::Vector3d(fx, 0, 0));
     // monitor
     if (i % 100 == 0) {
       // std::cout << "Robot Pose:" << robot->currentPose() << std::endl;

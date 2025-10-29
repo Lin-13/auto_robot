@@ -157,6 +157,28 @@ public:
       return 0;
     });
   }
+  Eigen::Vector3d getPos() { return admittance_controller_->getPos(); }
+  Eigen::Vector3d getForce() { return admittance_controller_->getForce(); }
+  Eigen::Vector3d getDesiredPos() {
+    return admittance_controller_->getDesiredPos();
+  }
+  Eigen::Vector3d getDesiredForce() {
+    return admittance_controller_->getDesiredForce();
+  }
+  void setDesiredPos(const Eigen::Vector3d &pos) {
+    admittance_controller_->setDesiredPos(pos);
+  }
+  void setDesiredForce(const Eigen::Vector3d &force) {
+    admittance_controller_->setDesiredForce(force);
+  }
+  void MoveDesiredPositionRel(const Eigen::Vector3d &pos) {
+    Eigen::Vector3d current_des = admittance_controller_->getDesiredPos();
+    admittance_controller_->setDesiredPos(current_des + pos);
+  }
+  void MoveDesiredForceRel(const Eigen::Vector3d &force) {
+    Eigen::Vector3d current_des = admittance_controller_->getDesiredForce();
+    admittance_controller_->setDesiredForce(current_des + force);
+  }
   std::shared_ptr<ControllerType> getAdmittanceController() {
     return admittance_controller_;
   }

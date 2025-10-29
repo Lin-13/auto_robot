@@ -221,9 +221,27 @@ public:
     return 0;
   }
   // get set
+  /**
+   * @brief p_sensor_.back().value
+   *
+   * @return T
+   */
   T getPos() {
     std::lock_guard<std::mutex> lock(data_mutex_);
-    return p_sensor_.back().value;
+    if (!p_sensor_)
+      throw std::runtime_error("位置传感器未设置");
+    return p_sensor_();
+  }
+  /**
+   * @brief f_sensor_.back().value
+   *
+   * @return T
+   */
+  T getForce() {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    if (!f_sensor_)
+      throw std::runtime_error("力传感器未设置");
+    return f_sensor_();
   }
   T getDesiredForce() {
     std::lock_guard<std::mutex> lock(param_mutex_);
