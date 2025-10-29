@@ -104,7 +104,7 @@ public:
     // config controller
     // m,kv,K
     admittance_controller_ =
-        std::make_shared<ControllerType>(1000 * I3, 2000 * I3, 1000 * I3);
+        std::make_shared<ControllerType>(7000 * I3, 5000 * I3, 1000 * I3);
     admittance_controller_->setDesiredPos(Eigen::Vector3d::Zero());
     admittance_controller_->setDesiredForce(Eigen::Vector3d::Zero());
     admittance_controller_->setForceSensor([force_sensor,
@@ -151,7 +151,9 @@ public:
       std::cout << "t : " << t
                 << " actual_joint : " << robot->currentJointState().transpose()
                 << std::endl;
-      robot->MoveJointToPose(new_pose);
+      // robot->MoveJointToPose(new_pose);
+      // MoveJointToPose internally calls setTarget
+      robot->controller()->setTarget(RobotController::RobotJointState(joint));
       return 0;
     });
   }

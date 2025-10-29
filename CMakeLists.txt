@@ -207,6 +207,11 @@ target_link_libraries(FTControl
     PRIVATE
     ft_sensor
     utils
+    context_monitor
+
+    # context_monitor必须放在也使用了protubuf的aubo前面，
+    # 若放在后面必须再次链接protobuf::libprotobuf，
+    # 否测会报错 ： double free or corruption (out)
     aubo
 )
 add_executable(OptitrackControl src/calib_handeye/optitrack_control.cpp)

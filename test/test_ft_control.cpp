@@ -29,8 +29,15 @@ void testFTSensor(std::shared_ptr<ati::FTSensor> ft_sensor) {
   std::cout << "传感器实际频率：" << ft_sensor->getRDTRate() << "Hz"
             << std::endl;
 }
-// TODO : 机器人在导纳控制下会出现运动摇摆，难以通过调节导纳参数解决
+// Done : 机器人在导纳控制下会出现运动摇摆，难以通过调节导纳参数解决
+// TODO : 导纳控制时机器人会脱离计划值
 int main() {
+  // monitor server
+  std::thread server(RunMonitorServer, 50051);
+  static Eigen::Vector<double, 3> monitor_force;
+  monitor_force.setZero();
+  REGISTER_MONITOR_VARIABLE(monitor_force);
+  // start
   auto ft_sensor = std::make_shared<ati::FTSensor>();
   ft_sensor->init(RIGHT_ATI_IP);
   // ft_sensor->setBias();
@@ -62,12 +69,15 @@ int main() {
   auto hybrid_control =
       std::make_shared<BaseController3d>(robot, ft_gravity_compensation, tree);
   ft_gravity_compensation->setSoftBias();
+  // force
   for (int i = 0;; i++) {
     PROFILE();
     auto start = std::chrono::steady_clock::now();
     hybrid_control->updateOnce(); // ****
     std::this_thread::sleep_until(start + 20ms);
-
+    monitor_force =
+        robot->currentPose().block<3, 3>(0, 0) *
+        ft_gravity_compensation->getCompensatedWrench().block<3, 1>(0, 0);
     // monitor
     if (i % 100 == 0) {
       // std::cout << "Robot Pose:" << robot->currentPose() << std::endl;
@@ -78,5 +88,6 @@ int main() {
       //           << std::endl;
     }
   }
+  server.join();
   return 0;
 }
