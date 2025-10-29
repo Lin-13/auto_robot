@@ -8,6 +8,7 @@
 #include "utils/transform_tree.h"
 #include <chrono>
 #include <fmt/format.h>
+#include <utils/signals_utils.h>
 /**
  * @brief 简单的机器人力位混合控制
  *
@@ -25,29 +26,38 @@ public:
    */
   BaseController(std::shared_ptr<Robot> robot,
                  std::shared_ptr<FTSensorGravityCompensation> force_sensor,
-                 std::shared_ptr<TransformTree> transform_tree) {
+                 std::shared_ptr<TransformTree> transform_tree, int axis = 2) {
     robot_ = robot;
     transform_tree_ = transform_tree;
     force_sensor_ = force_sensor;
+    axis_ = axis;
     force_sensor->bindPoseDetector([robot]() { return robot->currentPose(); });
+    // sensor filter
+    std::shared_ptr<DownSampleFilter> downsample_filter_ =
+        std::make_shared<DownSampleFilter>(30, 1000, 100, 4);
+    downsample_filter_->setPusher([force_sensor, axis]() -> Eigen::Vector3d {
+      return force_sensor->getCompensatedWrench().block<3, 1>(0, 0);
+    });
     admittance_controller_ = std::make_shared<ControllerType>(5, 80, 1000);
     admittance_controller_->setDesiredPos(0);
     admittance_controller_->setDesiredForce(0);
-    admittance_controller_->setForceSensor([force_sensor, robot]() -> double {
+    admittance_controller_->setForceSensor([force_sensor, robot,
+                                            axis]() -> double {
       Eigen::Vector<double, 6> wrench =
           force_sensor->getCompensatedWrench().block<6, 1>(0, 0);
       Eigen::Vector3d force = wrench.block<3, 1>(0, 0);
       force = robot->currentPose().block<3, 3>(0, 0) * force; // 机器人基坐标系
-      return force.z();                                       // z
+      return force[axis];                                     // z
     });
     auto initial_pos = robot_->currentPose();
-    admittance_controller_->setPositionSensor([robot, initial_pos]() -> double {
-      return robot->currentPose()(2, 3) - initial_pos(2, 3); // z
-    });
+    admittance_controller_->setPositionSensor(
+        [robot, initial_pos, axis]() -> double {
+          return robot->currentPose()(axis, 3) - initial_pos(axis, 3);
+        });
     admittance_controller_->setPositionUpdate(
-        [robot, initial_pos](double pos) -> int {
+        [robot, initial_pos, axis](double pos) -> int {
           auto new_pose = initial_pos;
-          new_pose(2, 3) = pos + initial_pos(2, 3);
+          new_pose(axis, 3) = pos + initial_pos(axis, 3);
           robot->MoveJointToPose(new_pose);
           return 0;
         });
@@ -66,6 +76,7 @@ private:
   std::shared_ptr<FTSensorGravityCompensation> force_sensor_;
   std::shared_ptr<TransformTree> transform_tree_;
   std::shared_ptr<ControllerType> admittance_controller_;
+  int axis_; //轴
 };
 class BaseController3d {
   using ControllerType = AdmittanceController3d;
@@ -84,11 +95,15 @@ public:
     robot_ = robot;
     transform_tree_ = transform_tree;
     force_sensor_ = force_sensor;
-    force_sensor->bindPoseDetector([robot]() { return robot->currentPose(); });
-    // m,kv,k
+    // force_sensor->bindPoseDetector([robot]() { return robot->currentPose();
+    // });
     auto I3 = Eigen::Matrix3d::Identity();
+    // force sensor filter
+
+    // config controller
+    // m,kv,K
     admittance_controller_ =
-        std::make_shared<ControllerType>(10 * I3, 100 * I3, 300 * I3);
+        std::make_shared<ControllerType>(5 * I3, 200 * I3, 100 * I3);
     admittance_controller_->setDesiredPos(Eigen::Vector3d::Zero());
     admittance_controller_->setDesiredForce(Eigen::Vector3d::Zero());
     admittance_controller_->setForceSensor([force_sensor,
@@ -127,6 +142,7 @@ private:
   std::shared_ptr<FTSensorGravityCompensation> force_sensor_;
   std::shared_ptr<TransformTree> transform_tree_;
   std::shared_ptr<ControllerType> admittance_controller_;
+  std::shared_ptr<DownSampleFilter> downsample_filter_;
 };
 /**
  * @brief 双机器人力位混合控制

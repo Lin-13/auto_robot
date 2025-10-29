@@ -7,7 +7,7 @@
  *
  * @return TransformTree
  */
-TransformTree tree() {
+TransformTree create_tree() {
   TransformTree tree;
   tree.add_node("world", Eigen::Matrix4d::Identity(), nullptr, "");
   tree.add_node("origin", Eigen::Matrix4d::Identity(), nullptr, "world");
@@ -31,4 +31,7 @@ TransformTree tree() {
                 "right_end");
   return tree;
 }
-int main() { HybridController hybrid_control; }
+int main() {
+  TransformTree tree = create_tree();
+  // HybridController hybrid_control;
+}

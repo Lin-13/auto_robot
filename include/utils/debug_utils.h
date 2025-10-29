@@ -141,13 +141,18 @@ class ProfilerGuard {
 private:
   std::string func_name;
   double start_time;
+  bool stop;
 
 public:
   ProfilerGuard(const std::string &name, double start)
-      : func_name(name), start_time(start) {}
-  ~ProfilerGuard() {
-    FunctionProfiler::get_instance().exit(func_name, start_time);
+      : func_name(name), start_time(start), stop(false) {}
+  void Stop() {
+    if (stop == false) {
+      FunctionProfiler::get_instance().exit(func_name, start_time);
+      stop = true;
+    }
   }
+  ~ProfilerGuard() { Stop(); }
 };
 
 // 埋点
@@ -156,8 +161,15 @@ public:
   double __profiler_start_time;                                                \
   FunctionProfiler::get_instance().enter(__FUNCTION__, __profiler_start_time); \
   ProfilerGuard __profiler_guard(__FUNCTION__, __profiler_start_time);
+#define PROFILE_NAME(name)                                                     \
+  double __profiler_start_time;                                                \
+  FunctionProfiler::get_instance().enter(name, __profiler_start_time);         \
+  ProfilerGuard __profiler_guard(name, __profiler_start_time);
+#define PROFILE_NAME_STOP(name) __profiler_guard.Stop();
 #define PRINT_PROFILER() FunctionProfiler::get_instance().print_stats();
 #else
 #define PROFILE()
+#define PROFILE_NAME(name)
+#define PROFILE_NAME_STOP(name)
 #define PRINT_PROFILER()
 #endif

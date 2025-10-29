@@ -271,10 +271,12 @@ void ButterworthFilter::checkStability() {
  * @param sample_freq 采样频率 (Hz)
  * @param order 滤波器阶数 (支持1-10阶)
  */
-DownSampleFilter::DownSampleFilter(size_t factor, double cutoff_freq,
-                                   int filter_order)
+DownSampleFilter::DownSampleFilter(int factor, double sample_freq,
+                                   double cutoff_freq, int filter_order)
     : factor_(factor), running_(false), sample_count_(0),
-      busf_filter_(cutoff_freq, 1000.0, filter_order) {
+      sample_freq_(sample_freq), cutoff_freq_(cutoff_freq),
+      filter_(std::make_shared<CausalGaussianFilter>(cutoff_freq, sample_freq,
+                                                     filter_order)) {
   latest_value_.store(0.0);
   latest_filtered_value_.store(0.0);
 }
@@ -312,9 +314,6 @@ void DownSampleFilter::setPusher(std::function<double()> pusher) {
 int DownSampleFilter::highSpeedPush(double value) {
   return internalPush(value);
 }
-
-// 获取滤波器信息
-int DownSampleFilter::getFilterOrder() const { return busf_filter_.getOrder(); }
 
 // 获取最新高阶BUSF滤波值 - 低延迟且高质量滤波
 double DownSampleFilter::getLatestFilteredValue() const {
@@ -358,7 +357,7 @@ double DownSampleFilter::getLatestHybridValue() {
 // 重置高阶BUSF滤波器
 void DownSampleFilter::resetFilter() {
   std::lock_guard<std::mutex> lock(mtx_);
-  busf_filter_.reset();
+  filter_.reset();
 }
 
 // 获取缓冲区状态
@@ -381,7 +380,7 @@ size_t DownSampleFilter::getTotalSampleCount() const {
 // 内部数据处理函数
 int DownSampleFilter::internalPush(double value) {
   // 立即进行高阶BUSF滤波
-  double filtered_value = busf_filter_.filter(value);
+  double filtered_value = filter_->filter(value);
 
   // 更新原始值和滤波值
   latest_value_.store(value);
@@ -403,11 +402,10 @@ int DownSampleFilter::internalPush(double value) {
 void DownSampleFilter::processLoop() {
   auto next_high_freq_time = std::chrono::steady_clock::now();
   auto next_low_freq_time = std::chrono::steady_clock::now();
-
-  const auto high_freq_interval =
-      std::chrono::microseconds(1000); // 1000Hz = 1ms间隔
-  const auto low_freq_interval =
-      std::chrono::milliseconds(20); // 50Hz = 20ms间隔
+  int dt_high = 1.0 / sample_freq_ * 1e6;
+  int dt_low = factor_ * dt_high;
+  const auto high_freq_interval = std::chrono::microseconds(dt_high);
+  const auto low_freq_interval = std::chrono::milliseconds(dt_low);
 
   size_t high_freq_counter = 0; // 1000Hz采样计数器
 

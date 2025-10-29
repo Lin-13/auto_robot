@@ -1,4 +1,5 @@
 #include "robot_interface/timer.h"
+#include "utils/debug_utils.h"
 Timer::~Timer() { stop(); }
 Timer::State Timer::state() { return state_; }
 void Timer::start() {
@@ -41,7 +42,8 @@ void Timer::stop() {
 }
 void Timer::run_thread(std::chrono::milliseconds interval) {
   while (true) {
-    auto start_time = std::chrono::high_resolution_clock::now();
+    PROFILE_NAME("Timer::run_thread::Loop");
+    auto start_time = std::chrono::steady_clock::now();
     {
       std::unique_lock<std::mutex> lock(mtx_);
       State state = state_;
@@ -66,10 +68,23 @@ void Timer::run_thread(std::chrono::milliseconds interval) {
     // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
     //     end_time - start_time);
     // std::this_thread::sleep_for(interval - duration);
-    std::this_thread::sleep_until(start_time + interval - 1ms);
-    auto end = start_time + interval;
-    while (std::chrono::high_resolution_clock::now() < end) {
-      // 空循环，等待剩余时间
+    // {
+    //   PROFILE_NAME("Timer::run_thread::sleep_until");
+    //   std::this_thread::sleep_until(start_time + interval - 1ms);
+    // }
+    // 忙等待
+    {
+      PROFILE_NAME("Timer::run_thread::Wait");
+      std::chrono::steady_clock::time_point end = start_time + interval;
+      // auto end = start_time;
+      auto wait_start = std::chrono::steady_clock::now();
+      while (1) {
+        auto now = std::chrono::steady_clock::now();
+        if (now >= end) {
+          break;
+        }
+        // 空循环，等待剩余时间
+      }
     }
   }
   {

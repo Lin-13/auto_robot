@@ -1,4 +1,5 @@
 #include "aubo/aubo_controller.h"
+#include "utils/debug_utils.h"
 // #define SERVER_HOST_left "192.168.1.131"
 // #define SERVER_PORT_left 8899
 
@@ -38,15 +39,15 @@ int AuboController::Initialize(std::chrono::milliseconds timer_period) {
   }
 
   robot_interface_.robotServiceInitGlobalMoveProfile();
-
+  // 25->50 deg/s^2
   aubo_robot_namespace::JointVelcAccParam jointMaxAcc;
-  jointMaxAcc.jointPara[0] = 25.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[1] = 25.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[2] = 25.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[3] = 25.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[4] = 25.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[5] =
-      25.0 / 180.0 * M_PI; // The interface requires the unit to be radians
+  jointMaxAcc.jointPara[0] = 50.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[1] = 50.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[2] = 50.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[3] = 50.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[4] = 50.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[5] = 50.0 / 180.0 * M_PI;
+  // The interface requires the unit to be radians
   robot_interface_.robotServiceSetGlobalMoveJointMaxAcc(jointMaxAcc);
 
   aubo_robot_namespace::JointVelcAccParam jointMaxVelc;
@@ -55,8 +56,8 @@ int AuboController::Initialize(std::chrono::milliseconds timer_period) {
   jointMaxVelc.jointPara[2] = 25.0 / 180.0 * M_PI;
   jointMaxVelc.jointPara[3] = 25.0 / 180.0 * M_PI;
   jointMaxVelc.jointPara[4] = 25.0 / 180.0 * M_PI;
-  jointMaxVelc.jointPara[5] =
-      25.0 / 180.0 * M_PI; // The interface requires the unit to be radians
+  jointMaxVelc.jointPara[5] = 25.0 / 180.0 * M_PI;
+  // The interface requires the unit to be radians
   robot_interface_.robotServiceSetGlobalMoveJointMaxVelc(jointMaxVelc);
 
   double lineMoveMaxAcc;
@@ -80,6 +81,17 @@ int AuboController::Initialize(std::chrono::milliseconds timer_period) {
   }
   // 允许事实控制
   robot_interface_.robotServiceSetRealTimeJointStatusPush(true);
+  // 注册回调函数
+  RealTimeJointStatusCallback callback =
+      [](const aubo_robot_namespace::JointStatus *jointStatus, int jointNum,
+         void *arg) {
+        PROFILE_NAME("Aubo RealTimeJointStatusCallback");
+        AuboController *controller = static_cast<AuboController *>(arg);
+        // do nothing
+      };
+  robot_interface_.robotServiceSetRealTimeJointStatusPush(true);
+  robot_interface_.robotServiceRegisterRealTimeJointStatusCallback(callback,
+                                                                   this);
   ret = RobotController::Initialize(timer_period);
   return ret;
 }
@@ -88,8 +100,36 @@ RobotController::RobotJointState AuboController::getJointState() {
     std::cerr << "controller not initialized." << std::endl;
     return RobotJointState(Eigen::VectorXd::Zero(num_joints_));
   }
+  static bool first_entry = true;
+  static std::chrono::time_point<std::chrono::steady_clock> last_time;
+  static RobotController::RobotJointState last_joint;
+  Eigen::Vector<double, 6> last_vel;
+  std::unique_lock<std::mutex> lock(mutex_);
+  ////当不是第一次进入时，检查与上次进入的时间间隔，如果小于10ms,则直接返回上次的joint状态
+  PROFILE();
+  // *
+  // if (!first_entry) {
+  //   auto now = std::chrono::steady_clock::now();
+  //   auto duration =
+  //       std::chrono::duration_cast<std::chrono::milliseconds>(now -
+  //       last_time)
+  //           .count();
+  //   if (duration < 10) {
+  //     RobotController::RobotJointState new_joint_state;
+  //     new_joint_state.joint_state =
+  //         last_joint.joint_state + last_vel * (duration / 1000.0);
+  //     new_joint_state.timestamp = now;
+
+  //     return new_joint_state;
+  //   }
+  // }
   std::vector<aubo_robot_namespace::JointStatus> status(num_joints_);
-  robot_interface_.robotServiceGetRobotJointStatus(status.data(), num_joints_);
+  {
+    PROFILE_NAME("robotServiceGetRobotJointStatus");
+    // 17ms
+    robot_interface_.robotServiceGetRobotJointStatus(status.data(),
+                                                     num_joints_);
+  }
   std::vector<double> joint_pos, joint_vel;
   for (auto &sta : status) {
     joint_pos.push_back(sta.jointPosJ);
@@ -101,11 +141,17 @@ RobotController::RobotJointState AuboController::getJointState() {
   joint_state.joint_state.resize(num_joints_);
   for (int i = 0; i < num_joints_; i++) {
     joint_state.joint_state(i) = joint_pos[i];
+    // *
+    last_vel[i] = joint_vel[i];
   }
   if (enable_log_ == 1) {
     std::cout << "aubo " << name_ << ": get joint state "
               << joint_state.joint_state.transpose() << std::endl;
   }
+  // *
+  first_entry = false;
+  last_time = joint_state.timestamp;
+  last_joint = joint_state;
   return joint_state;
 }
 int AuboController::setJointState(
@@ -114,6 +160,8 @@ int AuboController::setJointState(
     std::cerr << "controller not initialized." << std::endl;
     return -1;
   }
+  std::unique_lock<std::mutex> lock(mutex_);
+  PROFILE();
   if (joint_state.joint_state.size() != num_joints_) {
     std::cerr << "joint state size error." << std::endl;
     return -1;
@@ -144,6 +192,7 @@ int AuboController::Logout() {
   return 0;
 }
 int AuboController::timer_cb() {
+  PROFILE_NAME("AuboController::timer_cb");
   static auto start = std::chrono::steady_clock::now();
   auto t_start = std::chrono::steady_clock::now();
   if (enable_log_ == 1) {

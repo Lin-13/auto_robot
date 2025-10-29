@@ -23,6 +23,7 @@ public:
   int enable_log_ = 0;
 
 private:
+  std::mutex mutex_;
   int timer_cb() override;
   ServiceInterface robot_interface_;
   virtual int setJointState(RobotJointState joint_state) override;

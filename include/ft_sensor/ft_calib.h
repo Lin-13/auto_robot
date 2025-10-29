@@ -35,11 +35,13 @@ public:
     sensor_ = std::make_shared<ati::FTSensor>();
     sensor_->init(sensor_ip);
     params_ = read_gravity_calib_data(calib_file);
+    soft_bias_ = Eigen::VectorXd::Zero(6);
   }
   FTSensorGravityCompensation(std::shared_ptr<ati::FTSensor> sensor,
                               const string calib_file) {
     sensor_ = sensor;
     params_ = read_gravity_calib_data(calib_file);
+    soft_bias_ = Eigen::VectorXd::Zero(6);
   }
   /**
    * @brief 获取FT传感器
@@ -72,11 +74,13 @@ public:
     sensor_->getMeasurements(wrench.data());
     return wrench;
   }
+  void setSoftBias() { soft_bias_ += getCompensatedWrench(); }
   Eigen::VectorXd getCompensatedWrench() {
     Eigen::Vector<double, 6> wrench = getWrench();
     Eigen::MatrixXd pose = getPose();
-    decompose_force(pose.block<3, 3>(0, 0), wrench, params_);
-    return wrench;
+    Eigen::Vector<double, 6> comp_wrench =
+        decompose_force(pose.block<3, 3>(0, 0), wrench, params_);
+    return comp_wrench - soft_bias_;
   }
 
   ~FTSensorGravityCompensation() = default;
@@ -85,6 +89,7 @@ private:
   std::shared_ptr<ati::FTSensor> sensor_;
   FTParams params_;
   std::function<Eigen::MatrixXd(void)> pose_callback_;
+  Eigen::VectorXd soft_bias_;
 };
 
 /*****************************************==Test==*****************************************/

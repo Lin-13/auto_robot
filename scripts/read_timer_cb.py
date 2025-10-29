@@ -202,6 +202,9 @@ def plot_joint_trends(
         "#31263A",
         "#204138",
     ]
+    get_colors = ["#FB0000"] * 6
+    set_colors = ["#0814F4"] * 6
+    target_colors = ["#11E72D"] * 6
     # 逐个关节绘制趋势图
     for idx, (
         ax,
@@ -230,7 +233,7 @@ def plot_joint_trends(
             linewidth=2,
             marker="o",
             markersize=3,
-            alpha=0.8,
+            alpha=0.2,
             label="Get (Actual Angle)",
         )
         # 绘制set折线图
@@ -241,7 +244,7 @@ def plot_joint_trends(
             linewidth=1,
             marker="x",
             markersize=2,
-            alpha=0.8,
+            alpha=0.3,
             label="Set (PID Target Angle)",
         )
         # 绘制target折线图
@@ -293,7 +296,8 @@ def plot_joint_trends(
 
 def main():
     # -------------------------- 配置参数（可根据实际情况修改） --------------------------
-    LOG_FILE_PATH = "./build/aubo_test.txt"  # 修复：日志文件路径（原路径为./build/aubo_test.txt，需根据实际文件位置调整）
+    LOG_FILE_PATH = "./build/aubo_test.txt"
+    LOG_FILE_PATH = "./build/joint_log.txt"
     GET_CSV_SAVE_PATH = "./scripts/data/get_joint_time_data.csv"  # get数据CSV路径
     SET_CSV_SAVE_PATH = "./scripts/data/set_joint_time_data.csv"  # set数据CSV路径
     SET_TARGET_SAVE_PATH = (

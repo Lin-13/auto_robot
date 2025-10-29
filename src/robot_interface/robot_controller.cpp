@@ -1,5 +1,6 @@
 #include <iostream>
 #include <robot_interface/robot_controller.h>
+#include <utils/debug_utils.h>
 RobotController::RobotController(std::string name, int num_joints,
                                  ControllerConfig config)
     : name_(name), num_joints_(num_joints), config_(config) {}
@@ -34,12 +35,15 @@ RobotController::RobotJointState RobotController::getJointState() {
 int RobotController::timer_cb() {
   this->timer_count++;
   // 从getJointState()获取当前关节状态
+  // PROFILE_NAME("RobotController::timer_cb::1");
   static auto start = std::chrono::steady_clock::now();
   auto t = std::chrono::duration_cast<std::chrono::duration<double>>(
                std::chrono::steady_clock::now() - start)
                .count();
   // std::cout << "timer_cb:t_start = " << t << std::endl;
+  PROFILE_NAME("RobotController::timer_cb::getJointState");
   auto current = getJointState();
+  PROFILE_NAME_STOP("RobotController::timer_cb::getJointState");
   RobotJointState last, target, last_target;
   {
     std::unique_lock<std::mutex> lock(joint_state_mutex_);
@@ -48,6 +52,8 @@ int RobotController::timer_cb() {
     last_target = last_target_joint_state_;
     current_joint_state_ = current;
   }
+  // PROFILE_NAME_STOP("RobotController::timer_cb::1");
+  // PROFILE_NAME("RobotController::timer_cb::2");
   // 用于调试
   int target_size = target.joint_state.rows();
   int last_target_size = last_target.joint_state.rows();
@@ -83,8 +89,10 @@ int RobotController::timer_cb() {
       config_.k_p * (target.joint_state - current.joint_state) +
       config_.k_v * (q_dot_target - q_dot);
   new_joint_state.timestamp = current.timestamp;
+  // PROFILE_NAME_STOP("RobotController::timer_cb::2");
+  // PROFILE_NAME("RobotController::timer_cb::3");
   // 写入
-  setJointState(new_joint_state);
+  setJointState(new_joint_state); // 7ms
   // 更新上一个关节状态
   {
     std::unique_lock<std::mutex> lock(joint_state_mutex_);
@@ -94,7 +102,7 @@ int RobotController::timer_cb() {
   auto t_end = std::chrono::duration_cast<std::chrono::duration<double>>(
                    std::chrono::steady_clock::now() - start)
                    .count();
-
+  // PROFILE_NAME_STOP("RobotController::timer_cb::3");
   // std::cout << "timer_cb:t_end = " << t_end << std::endl;
   return 0;
 }

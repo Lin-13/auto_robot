@@ -272,10 +272,10 @@ void test_right(int &signal) {
       Eigen::AngleAxisd(15.0 * M_PI / 180, Eigen::Vector3d::UnitZ())
           .toRotationMatrix();
   // 重力标定
-  sensor->setBias();
-  auto params = test_gravity_compensation(signal, sensor, robot, R_sensor, 5);
-  write_gravity_calib_data("gravity_compensation/right.txt", params);
-  // use calib data
+  // sensor->setBias();
+  // auto params = test_gravity_compensation(signal, sensor, robot, R_sensor,
+  // 5); write_gravity_calib_data("gravity_compensation/right.txt", params); use
+  // calib data
   auto data = read_gravity_calib_data("gravity_compensation/right.txt");
   fmt::print("Read data from gravity_compensation/right.txt\n");
   fmt::print("L: {}\n", data["L"]);

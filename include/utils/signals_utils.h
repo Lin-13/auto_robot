@@ -259,15 +259,18 @@ private:
 };
 
 /**
- * @brief 下采样滤波器 - 1000Hz输入，50Hz输出，集成高阶BUSF滤波器
- * @param factor 下采样因子 (默认20，1000Hz/50Hz=20)
- * @param cutoff_freq BUSF滤波器截止频率 (默认25Hz)
- * @param filter_order BUSF滤波器阶数 (默认4阶)
+ * @brief 下采样滤波器
+ * 该类以指定的下采样因子对输入信号进行下采样处理，并可选地应用低通滤波器以减少混叠。
+ * 该类以sample_freq频率调用pusher
+ * @param factor 下采样因子
+ * @param sample_freq 输入采样频率 (默认1000Hz)
+ * @param cutoff_freq 滤波器截止频率 (默认25Hz)
+ * @param filter_order 滤波器阶数 (默认4阶)
  */
 class DownSampleFilter {
 public:
-  DownSampleFilter(size_t factor = 20, double cutoff_freq = 25.0,
-                   int filter_order = 4);
+  DownSampleFilter(int factor, double sample_freq = 1000.0,
+                   double cutoff_freq = 25.0, int filter_order = 4);
 
   ~DownSampleFilter();
   // 启动1000Hz数据采集和滤波处理线程
@@ -282,10 +285,7 @@ public:
   // 手动推入数据接口
   int highSpeedPush(double value);
 
-  // 获取滤波器信息
-  int getFilterOrder() const;
-
-  // 获取最新高阶BUSF滤波值 - 低延迟且高质量滤波
+  // 获取最新滤波值 - 低延迟且高质量滤波
   double getLatestFilteredValue() const;
 
   // 低速端获取最新滤波数据 (50Hz) - 非阻塞
@@ -294,10 +294,10 @@ public:
   // 获取最新原始值 - 最低延迟（适用于紧急情况）
   double getLatestRawValue() const;
 
-  // 获取混合值：最新高阶BUSF滤波值 + 下采样趋势
+  // 获取混合值：最新滤波值 + 下采样趋势
   double getLatestHybridValue();
 
-  // 重置高阶BUSF滤波器
+  // 重置滤波器
   void resetFilter();
 
   // 获取缓冲区状态
@@ -316,13 +316,15 @@ private:
 
 private:
   size_t factor_;                  // 下采样因子
+  double sample_freq_;             // 输入采样频率
+  double cutoff_freq_;             // 滤波器截止频率
   std::function<double()> pusher_; // 数据推送函数（传感器数据源）
   std::atomic<bool> running_;      // 运行状态
   std::atomic<double> latest_value_;          // 最新原始值
-  std::atomic<double> latest_filtered_value_; // 最新高阶BUSF滤波值
+  std::atomic<double> latest_filtered_value_; // 最新滤波值
   std::atomic<size_t> sample_count_;          // 总采样计数
 
-  ButterworthFilter busf_filter_; // 高阶BUSF滤波器实例
+  std::shared_ptr<FilterBase> filter_; // 滤波器实例
 
   std::thread processing_thread_;    // 处理线程
   mutable std::mutex mtx_;           // 高速缓冲区互斥锁
