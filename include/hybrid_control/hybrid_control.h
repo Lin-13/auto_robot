@@ -4,6 +4,7 @@
 #include "ft_sensor/ft_calib.h"
 #include "ft_sensor/ft_sensor.h"
 #include "robot_interface/robot.h"
+#include "utils/debug_utils.h"
 #include "utils/matrix_utils.h"
 #include "utils/transform_tree.h"
 #include <chrono>
@@ -33,11 +34,11 @@ public:
     axis_ = axis;
     force_sensor->bindPoseDetector([robot]() { return robot->currentPose(); });
     // sensor filter
-    std::shared_ptr<DownSampleFilter> downsample_filter_ =
-        std::make_shared<DownSampleFilter>(30, 1000, 100, 4);
-    downsample_filter_->setPusher([force_sensor, axis]() -> Eigen::Vector3d {
-      return force_sensor->getCompensatedWrench().block<3, 1>(0, 0);
-    });
+    // std::shared_ptr<DownSampleFilter> downsample_filter_ =
+    //     std::make_shared<DownSampleFilter>(30, 1000, 100, 4);
+    // downsample_filter_->setPusher([force_sensor, axis]() -> Eigen::Vector3d {
+    //   return force_sensor->getCompensatedWrench().block<3, 1>(0, 0);
+    // });
     admittance_controller_ = std::make_shared<ControllerType>(5, 80, 1000);
     admittance_controller_->setDesiredPos(0);
     admittance_controller_->setDesiredForce(0);
@@ -103,30 +104,56 @@ public:
     // config controller
     // m,kv,K
     admittance_controller_ =
-        std::make_shared<ControllerType>(5 * I3, 200 * I3, 100 * I3);
+        std::make_shared<ControllerType>(1000 * I3, 2000 * I3, 1000 * I3);
     admittance_controller_->setDesiredPos(Eigen::Vector3d::Zero());
     admittance_controller_->setDesiredForce(Eigen::Vector3d::Zero());
     admittance_controller_->setForceSensor([force_sensor,
                                             robot]() -> Eigen::Vector3d {
+      static auto start = std::chrono::steady_clock::now();
+      auto now = std::chrono::steady_clock::now();
+      double t =
+          std::chrono::duration_cast<std::chrono::milliseconds>(now - start)
+              .count() /
+          1000.0;
       Eigen::Vector<double, 6> wrench =
           force_sensor->getCompensatedWrench().block<6, 1>(0, 0);
       Eigen::Vector3d force = wrench.block<3, 1>(0, 0);
       force = robot->currentPose().block<3, 3>(0, 0) * force; // 机器人基坐标系
+      std::cout << "t : " << t << " force : " << force.transpose() << std::endl;
       return force;
     });
+    // 初始化虚拟传感器
+    admittance_controller_->setVirtualPositionSensor(Eigen::Vector3d::Zero());
     auto initial_pos = robot_->currentPose();
-    admittance_controller_->setPositionSensor(
-        [robot, initial_pos]() -> Eigen::Vector3d {
-          return robot->currentPose().block<3, 1>(0, 3) -
-                 initial_pos.block<3, 1>(0, 3); // z
-        });
-    admittance_controller_->setPositionUpdate(
-        [robot, initial_pos](Eigen::Vector3d pos) -> int {
-          auto new_pose = initial_pos;
-          new_pose.block<3, 1>(0, 3) = pos + initial_pos.block<3, 1>(0, 3);
-          robot->MoveJointToPose(new_pose);
-          return 0;
-        });
+    // admittance_controller_->setPositionSensor(
+    //     [robot, initial_pos]() -> Eigen::Vector3d {
+    //       // return robot->currentPose().block<3, 1>(0, 3) -
+    //       //        initial_pos.block<3, 1>(0, 3);
+    //     });
+    admittance_controller_->setPositionUpdate([robot, initial_pos](
+                                                  Eigen::Vector3d pos) -> int {
+      auto new_pose = initial_pos;
+      static auto start = std::chrono::steady_clock::now();
+      auto now = std::chrono::steady_clock::now();
+      double t =
+          std::chrono::duration_cast<std::chrono::milliseconds>(now - start)
+              .count() /
+          1000.0;
+      new_pose.block<3, 1>(0, 3) = pos + initial_pos.block<3, 1>(0, 3);
+      std::cout << "t : " << t << " xyz : " << pos.transpose() << std::endl;
+      Eigen::VectorXd joint =
+          robot->topology()->trans_inv(new_pose, robot->currentJointState());
+      std::cout << "t : " << t << " joint : " << joint.transpose() << std::endl;
+      std::cout
+          << "t : " << t << " actual_xyz : "
+          << (robot->currentPose() - initial_pos).block<3, 1>(0, 3).transpose()
+          << std::endl;
+      std::cout << "t : " << t
+                << " actual_joint : " << robot->currentJointState().transpose()
+                << std::endl;
+      robot->MoveJointToPose(new_pose);
+      return 0;
+    });
   }
   std::shared_ptr<ControllerType> getAdmittanceController() {
     return admittance_controller_;

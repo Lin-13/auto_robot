@@ -420,7 +420,6 @@ void DownSampleFilter::processLoop() {
       }
     }
 
-    // 1000Hz 高频数据采集和BUSF滤波
     if (now >= next_high_freq_time) {
       // 调用pusher获取传感器数据
       if (pusher_) {

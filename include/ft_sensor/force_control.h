@@ -213,6 +213,7 @@ public:
     const T x_d = p.value + v_d * dt_sec;
 
     // 执行位置更新
+    current_pos_ = x_d;
     if (position_updater_(x_d) != 0) {
       return -3;
     }
@@ -239,6 +240,18 @@ public:
   void setDesiredPos(T desired_pos) {
     std::lock_guard<std::mutex> lock(param_mutex_);
     desired_pos_ = desired_pos;
+  }
+  /**
+   * @brief
+   * 使用update函数的更新位置作为位置传感器，避免使用实际位置导致位置突变和震荡
+   *
+   * @param initial_pos
+   */
+  void setVirtualPositionSensor(T initial_pos) {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    current_pos_ = initial_pos;
+    p_sensor_ = [this]() { return this->current_pos_; };
+    return;
   }
   /**
    * @brief 设置最大缓存数据量
@@ -274,6 +287,7 @@ private:
   CoefType k_;      // 刚度系数
   T desired_force_; // 期望力
   T desired_pos_;   // 期望位置
+  T current_pos_;   // 当前期望位置
 
   // 传感器和执行器
   std::function<T()> p_sensor_;            // 位置传感器

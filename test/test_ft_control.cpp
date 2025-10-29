@@ -39,7 +39,7 @@ int main() {
   auto robot = auboRobotRight(30ms);
   std::shared_ptr<AuboController> controller =
       std::dynamic_pointer_cast<AuboController>(robot->controller());
-  controller->enable_log_ = 1;
+  // controller->enable_log_ = 1;
   robot->start(30ms); // TODO : 设置的时间与实际执行的时间不同
   auto ft_gravity_compensation = std::make_shared<FTSensorGravityCompensation>(
       ft_sensor, "gravity_compensation/right.txt");

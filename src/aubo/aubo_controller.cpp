@@ -41,32 +41,32 @@ int AuboController::Initialize(std::chrono::milliseconds timer_period) {
   robot_interface_.robotServiceInitGlobalMoveProfile();
   // 25->50 deg/s^2
   aubo_robot_namespace::JointVelcAccParam jointMaxAcc;
-  jointMaxAcc.jointPara[0] = 50.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[1] = 50.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[2] = 50.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[3] = 50.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[4] = 50.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[5] = 50.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[0] = 80.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[1] = 80.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[2] = 80.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[3] = 80.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[4] = 80.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[5] = 80.0 / 180.0 * M_PI;
   // The interface requires the unit to be radians
   robot_interface_.robotServiceSetGlobalMoveJointMaxAcc(jointMaxAcc);
 
   aubo_robot_namespace::JointVelcAccParam jointMaxVelc;
-  jointMaxVelc.jointPara[0] = 25.0 / 180.0 * M_PI;
-  jointMaxVelc.jointPara[1] = 25.0 / 180.0 * M_PI;
-  jointMaxVelc.jointPara[2] = 25.0 / 180.0 * M_PI;
-  jointMaxVelc.jointPara[3] = 25.0 / 180.0 * M_PI;
-  jointMaxVelc.jointPara[4] = 25.0 / 180.0 * M_PI;
-  jointMaxVelc.jointPara[5] = 25.0 / 180.0 * M_PI;
+  jointMaxVelc.jointPara[0] = 80.0 / 180.0 * M_PI;
+  jointMaxVelc.jointPara[1] = 80.0 / 180.0 * M_PI;
+  jointMaxVelc.jointPara[2] = 80.0 / 180.0 * M_PI;
+  jointMaxVelc.jointPara[3] = 80.0 / 180.0 * M_PI;
+  jointMaxVelc.jointPara[4] = 80.0 / 180.0 * M_PI;
+  jointMaxVelc.jointPara[5] = 80.0 / 180.0 * M_PI;
   // The interface requires the unit to be radians
   robot_interface_.robotServiceSetGlobalMoveJointMaxVelc(jointMaxVelc);
 
   double lineMoveMaxAcc;
-  lineMoveMaxAcc = 0.1; // Units m/s2
+  lineMoveMaxAcc = 0.5; // Units m/s2
   robot_interface_.robotServiceSetGlobalMoveEndMaxLineAcc(lineMoveMaxAcc);
   robot_interface_.robotServiceSetGlobalMoveEndMaxAngleAcc(lineMoveMaxAcc);
 
   double lineMoveMaxVelc;
-  lineMoveMaxVelc = 0.1;
+  lineMoveMaxVelc = 0.5;
   robot_interface_.robotServiceSetGlobalMoveEndMaxLineVelc(lineMoveMaxVelc);
   robot_interface_.robotServiceSetGlobalMoveEndMaxAngleVelc(lineMoveMaxVelc);
 
