@@ -230,6 +230,14 @@ target_link_libraries(
     # 若放在后面必须再次链接protobuf::libprotobuf，
     # 否测会报错 ： double free or corruption (out)
 )
+add_executable(HybrideControlTest test/test_hybrid_control.cpp)
+target_link_libraries(
+    HybrideControlTest
+    PRIVATE
+    aubo
+    utils
+    optitrack
+)
 install(
     TARGETS
     aruco_detect calib calib_handeye calib_handeye_optitrack OptitrackControl

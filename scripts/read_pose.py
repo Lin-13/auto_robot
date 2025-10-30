@@ -295,7 +295,7 @@ def print_basic_stats(data):
                 )
 
             elif "joint" in data_type:
-                print(f"  Joint angle ranges (degrees):")
+                print("  Joint angle ranges (degrees):")
                 for i in range(1, min(7, array.shape[1])):
                     degrees = np.degrees(array[:, i])
                     print(f"    Joint {i}: {degrees.min():.1f}° ~ {degrees.max():.1f}°")
@@ -317,7 +317,7 @@ def main():
             print("No valid data found, please check log file format")
             return
 
-        print(f"Successfully parsed data!")
+        print("Successfully parsed data!")
 
         # 打印基本统计信息
         print_basic_stats(data)

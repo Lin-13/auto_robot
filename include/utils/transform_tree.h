@@ -1,3 +1,4 @@
+#pragma once
 #include <Eigen/Core>
 #include <Eigen/LU>
 #include <unordered_map>
@@ -95,7 +96,7 @@ public:
     }
   }
   /**
-   * @brief 计算两个节点之间的相对变换 - 相对于世界坐标系
+   * @brief 计算两个节点之间的相对变换 - 相对于view(默认为世界坐标系)
    *
    * get_relative_transform_rel和get_relative_transform在参数完全相同时输出一致
    * @param name1 第一个节点的名称
@@ -133,20 +134,20 @@ public:
   Matrix4d rel_transform_rel(const std::string &name1, const std::string &name2,
                              const std::string view = "") {
     // 全局坐标系下的相对变换
-    Matrix4d relative_transform_in_global =
+    Matrix4d relative_transform_in_name1 =
         get_global_transform(name1).inverse() * get_global_transform(name2);
-    Matrix4d relative_transform = relative_transform_in_global;
+    Matrix4d relative_transform = relative_transform_in_name1;
     if (view != "") {
       if (!node_exists(view)) {
         throw std::runtime_error("View node not found: " + view);
       }
       // 计算view到name1的相对变换
-      Matrix4d global_to_view =
+      Matrix4d view_to_name1 =
           get_global_transform(view).inverse() * get_global_transform(name1);
 
       // 计算view下从name1到name2的相对变换关系
-      relative_transform = global_to_view * relative_transform_in_global *
-                           global_to_view.inverse();
+      relative_transform =
+          view_to_name1 * relative_transform_in_name1 * view_to_name1.inverse();
     }
     return relative_transform;
   }

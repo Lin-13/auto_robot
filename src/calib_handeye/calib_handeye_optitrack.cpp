@@ -23,14 +23,14 @@
 // 0 0 0 1
 // RPY: 179.241  4.3714 55.7235
 // * right : T_bc,T_et
-// 0.12685 -0.00521278 -0.991908 0.00656394
-// -0.991296 0.0348554 -0.126955 -0.345532
-// 0.0352352 0.999379 -0.000745989 0.894941
+// -0.12685 -0.00521243 0.991908 0.243538
+// 0.991296 0.0348556 0.126955 -1.00443
+// -0.0352353 0.999379 0.00074562 0.207359
 // 0 0 0 1
 // RPY: 89.9573 2.01925 97.2922
-// 0.754442 -0.651168 0.082441 -0.0459266
-// 0.651892 0.758006 0.0215254 -0.0146396
-// -0.0765075 0.037503 0.996363 0.187496
+// 0.754443 -0.651168 0.0824413 -0.0459264
+// 0.651892 0.758006 0.0215253 -0.0146394
+// -0.0765076 0.0375032 0.996363 0.187496
 // 0 0 0 1
 // RPY:  2.1556 4.38785 40.8293
 #include <aubo/aubo_robot.h>
@@ -258,6 +258,8 @@ void calib_replay(std::string robot_name, std::string data_folder) {
   std::cout << " RPY: "
             << RotToRPY(T[1].block<3, 3>(0, 0)).transpose() * 180 / M_PI
             << std::endl;
+  writeEigenXdToFile(fmt::format("{}/T_bc.txt", data_folder), T[0]);
+  writeEigenXdToFile(fmt::format("{}/T_et.txt", data_folder), T[1]);
   return;
 }
 int main(int argc, char **argv) {
@@ -265,7 +267,7 @@ int main(int argc, char **argv) {
   // calib_handeye_optitrack("right", "target_right",
   // "optitrack_handeye_right");
   // * replay
-  calib_replay("left", "optitrack_handeye_left");
+  // calib_replay("left", "optitrack_handeye_left");
   calib_replay("right", "optitrack_handeye_right");
   return 0;
 }
