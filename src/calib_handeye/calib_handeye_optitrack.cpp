@@ -1,3 +1,38 @@
+/**
+ * @file calib_handeye_optitrack.cpp
+ * @author your name (you@domain.com)
+ * @brief T_bc : base 到 camera 的刚体变换,base视角下的camera位姿
+ *        p_b = T_bc * p_c
+ *        T_et : end 到 target 的刚体变换,end视角下的target位姿
+ *        p_e = T_et * p_t
+ *        使用OptiTrack进行手眼标定
+ *
+ * @copyright Copyright (c) 2025
+ *
+ */
+// * 标定结果 ! 2025/10/30
+// * left : T_bc,T_et
+// -0.0383915 -0.00421437 0.999254 -0.633543
+// 0.998945 0.0250622 0.0384853 -0.995683
+// -0.0252057 0.999677 0.00324775 0.203594
+// 0 0 0 1
+// RPY: 89.8139 1.44433 92.2009
+// 0.561549 0.826826 -0.0319707 -0.0179136
+// 0.823926 -0.562303 -0.0704434 -0.0664494
+// -0.0762217 0.0132159 -0.997003 0.145208
+// 0 0 0 1
+// RPY: 179.241  4.3714 55.7235
+// * right : T_bc,T_et
+// 0.12685 -0.00521278 -0.991908 0.00656394
+// -0.991296 0.0348554 -0.126955 -0.345532
+// 0.0352352 0.999379 -0.000745989 0.894941
+// 0 0 0 1
+// RPY: 89.9573 2.01925 97.2922
+// 0.754442 -0.651168 0.082441 -0.0459266
+// 0.651892 0.758006 0.0215254 -0.0146396
+// -0.0765075 0.037503 0.996363 0.187496
+// 0 0 0 1
+// RPY:  2.1556 4.38785 40.8293
 #include <aubo/aubo_robot.h>
 #include <filesystem>
 #include <fmt/format.h>
@@ -5,31 +40,71 @@
 #include <optitrack/optitrack.h>
 #include <utils/matrix_utils.h>
 // adjust 函数需要每次标定时根据实际情况进行调整
+// auto T_bc_adjust = [](Eigen::Matrix3d &R) {
+//   // adjustRotateInplace(R, 1, 0, 0);
+//   // optitrack X轴与机器人X轴一致，Y轴向上
+//   if (R.block<3, 1>(0, 0).dot(Eigen::Vector3d::UnitX()) < 0) {
+//     R.block<3, 1>(0, 0) = -R.block<3, 1>(0, 0);
+//     R.block<3, 1>(0, 2) = -R.block<3, 1>(0, 2);
+//   }
+//   if (R.block<3, 1>(0, 1).dot(Eigen::Vector3d::UnitZ()) < 0) {
+//     R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1);
+//     R.block<3, 1>(0, 2) = -R.block<3, 1>(0, 2);
+//   }
+// };
+// auto T_et_adjust = [](Eigen::Matrix3d &R) {
+//   // adjustRotateInplace(R, -1, 0, -1);
+//   // 调整target z轴，使其在end x轴正方向 ->
+//   // 机器人在末端沿X+运动时，target沿Z+运动
+//   if (R.block<3, 1>(0, 2).dot(Eigen::Vector3d::UnitX()) < 0) {
+//     R.block<3, 1>(0, 2) = -R.block<3, 1>(0, 2);
+//     R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1);
+//   }
+//   // 调整target x轴，使其在end z轴正方向 ->
+//   // 机器人在末端沿Z+运动时，target沿X+运动
+//   if (R.block<3, 1>(0, 0).dot(Eigen::Vector3d::UnitZ()) < 0) {
+//     R.block<3, 1>(0, 0) = -R.block<3, 1>(0, 0);
+//     R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1);
+//   }
+// };
+// * 双臂夹取时的位姿为准进行标定
+// * 先将机器人设置为准备夹取的姿态,然后再optitrack中固定刚体坐标系的姿态
+// 以准备夹取姿态在Motive中设置target_left刚体后的调整函数
 auto T_bc_adjust = [](Eigen::Matrix3d &R) {
   // adjustRotateInplace(R, 1, 0, 0);
-  // optitrack X轴与机器人X轴一致，Y轴向上
-  if (R.block<3, 1>(0, 0).dot(Eigen::Vector3d::UnitX()) < 0) {
+  // optitrack X轴与机器人base的Y轴对齐
+  if (R.block<3, 1>(0, 0).dot(Eigen::Vector3d::UnitY()) < 0) {
     R.block<3, 1>(0, 0) = -R.block<3, 1>(0, 0);
     R.block<3, 1>(0, 2) = -R.block<3, 1>(0, 2);
   }
+  // optitrack Y轴与机器人Z轴对齐 (向上)
   if (R.block<3, 1>(0, 1).dot(Eigen::Vector3d::UnitZ()) < 0) {
-    R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1);
-    R.block<3, 1>(0, 2) = -R.block<3, 1>(0, 2);
+    R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1); // Y
+    R.block<3, 1>(0, 2) = -R.block<3, 1>(0, 2); // Z
   }
 };
-auto T_et_adjust = [](Eigen::Matrix3d &R) {
-  // adjustRotateInplace(R, -1, 0, -1);
-  // 调整target z轴，使其在end x轴正方向 ->
-  // 机器人在末端沿X+运动时，target沿Z+运动
-  if (R.block<3, 1>(0, 2).dot(Eigen::Vector3d::UnitX()) < 0) {
-    R.block<3, 1>(0, 2) = -R.block<3, 1>(0, 2);
-    R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1);
+auto T_et_adjust_left = [](Eigen::Matrix3d &R) {
+  // 末端坐标系X轴与刚体坐标系同向
+  if (R.block<3, 1>(0, 0).dot(Eigen::Vector3d::UnitX()) < 0) {
+    R.block<3, 1>(0, 0) = -R.block<3, 1>(0, 0); // X
+    R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1); // Y
   }
-  // 调整target x轴，使其在end z轴正方向 ->
-  // 机器人在末端沿Z+运动时，target沿X+运动
-  if (R.block<3, 1>(0, 0).dot(Eigen::Vector3d::UnitZ()) < 0) {
-    R.block<3, 1>(0, 0) = -R.block<3, 1>(0, 0);
-    R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1);
+  // 末端坐标系Z轴沿刚体坐标系Z轴反方向
+  if (R.block<3, 1>(0, 2).dot(Eigen::Vector3d::UnitZ()) > 0) {
+    R.block<3, 1>(0, 2) = -R.block<3, 1>(0, 2); // Z
+    R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1); // Y
+  }
+};
+auto T_et_adjust_right = [](Eigen::Matrix3d &R) {
+  // 末端坐标系X轴与刚体坐标系同向
+  if (R.block<3, 1>(0, 0).dot(Eigen::Vector3d::UnitX()) < 0) {
+    R.block<3, 1>(0, 0) = -R.block<3, 1>(0, 0); // X
+    R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1); // Y
+  }
+  // 末端坐标系Z轴沿刚体坐标系Z轴正方向
+  if (R.block<3, 1>(0, 2).dot(Eigen::Vector3d::UnitZ()) < 0) {
+    R.block<3, 1>(0, 2) = -R.block<3, 1>(0, 2); // Z
+    R.block<3, 1>(0, 1) = -R.block<3, 1>(0, 1); // Y
   }
 };
 void calib_handeye_optitrack(const std::string &robot_name,
@@ -44,13 +119,16 @@ void calib_handeye_optitrack(const std::string &robot_name,
   // 初始化机器人
   std::shared_ptr<Robot> robot;
   // std::string data_folder;
+  std::function<void(Eigen::Matrix3d & R)> T_et_adjust;
   if (robot_name == "left") {
     robot = auboRobotLeft();
+    T_et_adjust = T_et_adjust_left;
     if (data_folder.empty()) {
       data_folder = "optitrack_handeye_left";
     }
   } else if (robot_name == "right") {
     robot = auboRobotRight();
+    T_et_adjust = T_et_adjust_right;
     if (data_folder.empty()) {
       data_folder = "optitrack_handeye_right";
     }
@@ -120,12 +198,27 @@ void calib_handeye_optitrack(const std::string &robot_name,
   fmt::print("Calibration residual - se3距离度量(平方范数): {}\n",
              sqrt(res / 2));
   std::cout << "T_base2camera result: \n" << T[0] << std::endl;
+  std::cout << " RPY: "
+            << RotToRPY(T[0].block<3, 3>(0, 0)).transpose() * 180 / M_PI
+            << std::endl;
   std::cout << "T_end2target result: \n" << T[1] << std::endl;
+  std::cout << " RPY: "
+            << RotToRPY(T[1].block<3, 3>(0, 0)).transpose() * 180 / M_PI
+            << std::endl;
   writeEigenXdToFile(fmt::format("{}/T_bc.txt", data_folder), T[0]);
   writeEigenXdToFile(fmt::format("{}/T_et.txt", data_folder), T[1]);
   return;
 }
-void calib_replay(std::string data_folder) {
+void calib_replay(std::string robot_name, std::string data_folder) {
+  std::function<void(Eigen::Matrix3d & R)> T_et_adjust;
+  if (robot_name == "left") {
+    T_et_adjust = T_et_adjust_left;
+  } else if (robot_name == "right") {
+    T_et_adjust = T_et_adjust_right;
+  } else {
+    fmt::print("Robot type {} not supported.\n", robot_name);
+    return;
+  }
   if (!std::filesystem::exists(data_folder)) {
     std::cout << "数据文件夹不存在: " << data_folder << std::endl;
     return;
@@ -158,13 +251,21 @@ void calib_replay(std::string data_folder) {
       T_cam2target_list, T_base2gripper_list, T_bc_adjust, T_et_adjust, &res);
   fmt::print("Calibration residual - 距离度量(平方范数): {}\n", sqrt(res / 2));
   std::cout << "T_base2camera result: \n" << T[0] << std::endl;
+  std::cout << " RPY: "
+            << RotToRPY(T[0].block<3, 3>(0, 0)).transpose() * 180 / M_PI
+            << std::endl;
   std::cout << "T_end2target result: \n" << T[1] << std::endl;
+  std::cout << " RPY: "
+            << RotToRPY(T[1].block<3, 3>(0, 0)).transpose() * 180 / M_PI
+            << std::endl;
   return;
 }
 int main(int argc, char **argv) {
   // calib_handeye_optitrack("left", "target_left", "optitrack_handeye_left");
-  calib_handeye_optitrack("right", "target_right", "optitrack_handeye_right");
-  // calib_replay("optitrack_handeye_left");
-  // calib_replay("optitrack_handeye_right");
+  // calib_handeye_optitrack("right", "target_right",
+  // "optitrack_handeye_right");
+  // * replay
+  calib_replay("left", "optitrack_handeye_left");
+  calib_replay("right", "optitrack_handeye_right");
   return 0;
 }
