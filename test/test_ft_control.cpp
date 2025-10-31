@@ -46,7 +46,7 @@ int main() {
   auto robot = auboRobotRight(30ms);
   std::shared_ptr<AuboController> controller =
       std::dynamic_pointer_cast<AuboController>(robot->controller());
-  // controller->enable_log_ = 1;
+  controller->enable_log_ = 1;
   robot->start(30ms); // TODO : 设置的时间与实际执行的时间不同
   auto ft_gravity_compensation = std::make_shared<FTSensorGravityCompensation>(
       ft_sensor, "gravity_compensation/right.txt");
@@ -81,7 +81,7 @@ int main() {
     monitor_force =
         robot->currentPose().block<3, 3>(0, 0) *
         ft_gravity_compensation->getCompensatedWrench().block<3, 1>(0, 0);
-    x = 0.02 * i * 0.05;
+    x = 0.02 * i * 0.01;
     x = std::clamp(x, -0.05, 0.05);
     if (monitor_force.x() > -40.0) {
       hybrid_control->setDesiredPos(Eigen::Vector3d(x, 0, 0));

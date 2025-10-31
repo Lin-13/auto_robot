@@ -299,6 +299,7 @@ def main():
     # -------------------------- 配置参数（可根据实际情况修改） --------------------------
     LOG_FILE_PATH = "./build/aubo_test.txt"
     LOG_FILE_PATH = "../build/joint_logs.txt"
+    # LOG_FILE_PATH = "../build/pose_log.txt"
     GET_CSV_SAVE_PATH = "./data/get_joint_time_data.csv"  # get数据CSV路径
     SET_CSV_SAVE_PATH = "./data/set_joint_time_data.csv"  # set数据CSV路径
     SET_TARGET_SAVE_PATH = "./data/set_joint_target_time_data.csv"  # set目标数据CSV路径

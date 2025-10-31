@@ -64,7 +64,7 @@ TransformTree create_tree() {
   // * right_tcp相对于ftsensor的固定变换: 绕Z轴旋转15度然后平移142mm
   Eigen::Matrix4d right_tcp = Eigen::Matrix4d::Identity();
   right_tcp.block<3, 3>(0, 0) =
-      Eigen::AngleAxisd(30.0 * M_PI / 180, Eigen::Vector3d::UnitZ())
+      Eigen::AngleAxisd(30.4 * M_PI / 180, Eigen::Vector3d::UnitZ())
           .toRotationMatrix();
   right_tcp.block<3, 1>(0, 3) = Eigen::Vector3d(0.0, 0.0, 0.142);
   tree.add_node("right_tcp", right_tcp, nullptr, "right_ftsensor");
@@ -152,19 +152,21 @@ void printTrans(Eigen::Matrix4d &trans) {
             << std::endl;
 }
 int main() {
+  // 初始化实例
   TransformTree tree = create_tree();
   auto left_robo = auboRobotLeft();
   auto right_robo = auboRobotRight();
   std::shared_ptr<AuboController> left_controller =
       std::dynamic_pointer_cast<AuboController>(left_robo->controller());
-  left_controller->enable_log_ = 1;
+  //   left_controller->enable_log_ = 1;
   std::shared_ptr<AuboController> right_controller =
       std::dynamic_pointer_cast<AuboController>(right_robo->controller());
-  right_controller->enable_log_ = 1;
+  //   right_controller->enable_log_ = 1;
   left_robo->start(30ms);
   right_robo->start(30ms);
   auto optitrack = std::make_shared<OptiTrackRigidBodyCap>(
       std::vector<std::string>{"target_left", "target_right"}, "192.168.1.172");
+
   // 测试transformtree 能否正确计算
   tree.set_transform_func("left_end",
                           [&left_robo]() { return left_robo->currentPose(); });
@@ -179,10 +181,8 @@ int main() {
   // => T_tcp_move = T_cb * T_be_new * T_be.inv * T_cb.inv
   // => T_be_new = T_be_new * T_be.inv = T_cb.inv * T_tcp_move * T_cb * T_be
   auto left_end = tree.get_global_transform("left_end");
-  printTrans(left_end);
   auto right_end = tree.get_global_transform("right_end");
   auto left_tcp = tree.get_global_transform("left_tcp");
-  printTrans(left_tcp);
   auto right_tcp = tree.get_global_transform("right_tcp");
   auto T_cb_left = tree.get_global_transform("left_base");
   auto T_cb_right = tree.get_global_transform("right_base");
@@ -206,8 +206,7 @@ int main() {
   //   right_tcp_move.block<3, 1>(0, 3) << 0, 0, 0.01; //前进10mm
   Eigen::Matrix4d T_be_move = T_cb_left.inverse() * left_tcp_move * T_cb_left;
   Eigen::Matrix4d T_be_left_new = T_be_move * T_be_left;
-  T_be_left_new.block<3, 1>(0, 3) =
-      T_be_left.block<3, 1>(0, 3); // 旋转部分和平移部分需要分别处理
+  T_be_left_new.block<3, 1>(0, 3) = T_be_left.block<3, 1>(0, 3);
   Eigen::Matrix4d T_be_right_new =
       T_cb_right.inverse() * right_tcp_move * T_cb_right * T_be_right;
   T_be_right_new.block<3, 1>(0, 3) = T_be_right.block<3, 1>(0, 3);
@@ -226,7 +225,7 @@ int main() {
        {5, left_robo->topology()->trans_inv(T_be_left_new, left_joints)}},
       30ms, 0, 1);
   auto right_joints = right_robo->currentJointState();
-  right_robo->MovePose({{0, T_be_right}, {5, T_be_right_new}}, 30ms, 0, 1);
+  //   right_robo->MovePose({{0, T_be_right}, {5, T_be_right_new}}, 30ms, 0, 1);
   right_robo->MoveJoint(
       {{0, right_robo->topology()->trans_inv(T_be_right, right_joints)},
        {5, right_robo->topology()->trans_inv(T_be_right_new, right_joints)}},
