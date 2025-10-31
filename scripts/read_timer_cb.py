@@ -290,6 +290,7 @@ def plot_joint_trends(
 
     # 保存图片（高分辨率）
     plt.savefig(save_plot_path, dpi=300, bbox_inches="tight", facecolor="white")
+    plt.show()
     plt.close()
     print(f"✅ 趋势图已保存到：{save_plot_path}")
 
@@ -297,13 +298,11 @@ def plot_joint_trends(
 def main():
     # -------------------------- 配置参数（可根据实际情况修改） --------------------------
     LOG_FILE_PATH = "./build/aubo_test.txt"
-    LOG_FILE_PATH = "./build/joint_log.txt"
-    GET_CSV_SAVE_PATH = "./scripts/data/get_joint_time_data.csv"  # get数据CSV路径
-    SET_CSV_SAVE_PATH = "./scripts/data/set_joint_time_data.csv"  # set数据CSV路径
-    SET_TARGET_SAVE_PATH = (
-        "./scripts/data/set_joint_target_time_data.csv"  # set目标数据CSV路径
-    )
-    PLOT_SAVE_PATH = "./scripts/data/joint_time_trends.png"  # 可视化图片路径
+    LOG_FILE_PATH = "../build/joint_logs.txt"
+    GET_CSV_SAVE_PATH = "./data/get_joint_time_data.csv"  # get数据CSV路径
+    SET_CSV_SAVE_PATH = "./data/set_joint_time_data.csv"  # set数据CSV路径
+    SET_TARGET_SAVE_PATH = "./data/set_joint_target_time_data.csv"  # set目标数据CSV路径
+    PLOT_SAVE_PATH = "./data/joint_time_trends.png"  # 可视化图片路径
     # ----------------------------------------------------------------------------------
     print("✅ 脚本已启动，进入 main 函数")
     try:

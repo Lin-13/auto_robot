@@ -15,7 +15,12 @@ public:
   };
   std::unordered_map<std::string, TransformNode> node_map;
   TransformTree() = default;
-  TransformNode &node(const std::string &name) { return node_map[name]; }
+  TransformNode &node(const std::string &name) {
+    if (!node_exists(name)) {
+      throw std::runtime_error("Node not found: " + name);
+    }
+    return node_map[name];
+  }
   /**
    * @brief 更新所有节点的变换矩阵reset
    *
@@ -81,6 +86,12 @@ public:
       throw std::runtime_error("Node not found: " + name);
     }
     node_map[name].get_transform_func = get_transform_func;
+  }
+  Matrix4d &get_trans(const std::string &name) {
+    if (!node_exists(name)) {
+      throw std::runtime_error("Node not found: " + name);
+    }
+    return node_map[name].transform;
   }
   Matrix4d get_global_transform(const std::string &name) {
     if (!node_exists(name)) {
