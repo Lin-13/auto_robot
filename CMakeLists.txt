@@ -50,6 +50,7 @@ add_library(
     src/utils/opencv_utils.cpp
     src/utils/matrix_utils.cpp
     src/utils/signal_utils.cpp
+    src/utils/debug_utils.cpp
 )
 add_library(robot_interface
     STATIC
@@ -237,6 +238,9 @@ target_link_libraries(
     aubo
     utils
     optitrack
+    ft_sensor
+    context_monitor
+    protobuf::libprotobuf
 )
 install(
     TARGETS

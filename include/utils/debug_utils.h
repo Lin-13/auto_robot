@@ -173,3 +173,6 @@ public:
 #define PROFILE_NAME_STOP(name)
 #define PRINT_PROFILER()
 #endif
+double tictok_timer(int command = 0);
+double tic();
+double toc();

@@ -10,6 +10,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+using namespace std::chrono_literals;
 using std::string;
 constexpr char LEFT_ATI_IP[] = "192.168.1.111";
 constexpr char RIGHT_ATI_IP[] = "192.168.1.112";
@@ -75,6 +76,25 @@ public:
     return wrench;
   }
   void setSoftBias() { soft_bias_ += getCompensatedWrench(); }
+  void setSoftBiasMean(std::chrono::microseconds duration) {
+    // 计算在给定时间段内的平均值
+    Eigen::Vector<double, 6> mean;
+    mean.setZero();
+
+    auto now = std::chrono::steady_clock::now();
+    auto start = now;
+    int cnt = 0;
+    while (std::chrono::duration_cast<std::chrono::microseconds>(now - start) <
+           duration) {
+      mean += getCompensatedWrench();
+      cnt++;
+      std::this_thread::sleep_for(10ms);
+      now = std::chrono::steady_clock::now();
+    }
+    mean /= cnt;
+    soft_bias_ = mean;
+  }
+
   Eigen::VectorXd getCompensatedWrench() {
     Eigen::Vector<double, 6> wrench = getWrench();
     Eigen::MatrixXd pose = getPose();

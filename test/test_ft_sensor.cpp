@@ -272,10 +272,10 @@ void test_right(int &signal) {
       Eigen::AngleAxisd(15.0 * M_PI / 180, Eigen::Vector3d::UnitZ())
           .toRotationMatrix();
   // 重力标定
-  // sensor->setBias();
-  // auto params = test_gravity_compensation(signal, sensor, robot, R_sensor,
-  // 5); write_gravity_calib_data("gravity_compensation/right.txt", params); use
-  // calib data
+  sensor->setBias();
+  auto params = test_gravity_compensation(signal, sensor, robot, R_sensor, 5);
+  write_gravity_calib_data("gravity_compensation/right.txt", params);
+  // use calib data
   auto data = read_gravity_calib_data("gravity_compensation/right.txt");
   fmt::print("Read data from gravity_compensation/right.txt\n");
   fmt::print("L: {}\n", data["L"]);
@@ -284,8 +284,31 @@ void test_right(int &signal) {
   fmt::print("m0: {}\n", data["m0"]);
   test_gravity_decompensation(sensor, robot, R_sensor, data);
 }
+int test_ft_sensor_right() {
+  fmt::print("Init FTSensor right.\n");
+  ati::FTSensor right_sensor;
+  right_sensor.init(RIGHT_ATI_IP);
+  right_sensor.setBias();
+  fmt::print("Get calibration data.\n");
+  right_sensor.getSettings();
+
+  std::vector<double> right_measurements(6);
+  auto start = std::chrono::steady_clock::now();
+  while (1) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    fmt::print("\033[0;25m{}s\033[0m\n",
+               std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::steady_clock::now() - start)
+                       .count() /
+                   1000.0);
+    right_sensor.getMeasurements<double>(right_measurements.data());
+    fmt::print("right_measurements: {}\n", right_measurements);
+  }
+  return 0;
+}
 int main() {
   // test_ft_sensor();
+  test_ft_sensor_right();
   // test io
   std::thread server_thread(RunMonitorServer, 50051);
   static int signal = 0;
