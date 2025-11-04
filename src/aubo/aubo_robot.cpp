@@ -68,7 +68,11 @@ std::shared_ptr<Robot> auboRobotLeft(std::chrono::milliseconds timer_period,
   if (ret != 0) {
     std::cerr << "auboRobotLeft : Failed to initialize left robot controller"
               << std::endl;
-    return std::make_shared<Robot>(nullptr, robot_topology);
+    std::shared_ptr<SimpleRobotController> simple_controller =
+        std::make_shared<SimpleRobotController>("simple_aubo_left", 6, config,
+                                                1);
+    simple_controller->Initialize(timer_period);
+    return std::make_shared<Robot>(simple_controller, robot_topology);
   }
   return std::make_shared<Robot>(robot_controller, robot_topology);
 }
@@ -81,7 +85,11 @@ std::shared_ptr<Robot> auboRobotRight(std::chrono::milliseconds timer_period,
   if (ret != 0) {
     std::cerr << "auboRobotRight : Failed to initialize right robot controller"
               << std::endl;
-    return std::make_shared<Robot>(nullptr, robot_topology);
+    std::shared_ptr<SimpleRobotController> simple_controller =
+        std::make_shared<SimpleRobotController>("simple_aubo_right", 6, config,
+                                                1);
+    simple_controller->Initialize(timer_period);
+    return std::make_shared<Robot>(simple_controller, robot_topology);
   }
   return std::make_shared<Robot>(robot_controller, robot_topology);
 }

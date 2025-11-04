@@ -150,4 +150,5 @@ public:
 public:
   RobotJointState sim_state;
   int print_log_;
+  int &enable_log_ = print_log_;
 };
