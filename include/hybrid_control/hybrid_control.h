@@ -29,41 +29,70 @@ public:
   BaseController(std::shared_ptr<Robot> robot,
                  std::shared_ptr<FTSensorGravityCompensation> force_sensor,
                  std::shared_ptr<TransformTree> transform_tree, int axis = 2) {
+    log_file_.open("pose_log.txt", std::ios::out | std::ios::trunc);
     robot_ = robot;
     transform_tree_ = transform_tree;
     force_sensor_ = force_sensor;
     axis_ = axis;
     force_sensor->bindPoseDetector([robot]() { return robot->currentPose(); });
-    // sensor filter
-    // std::shared_ptr<DownSampleFilter> downsample_filter_ =
-    //     std::make_shared<DownSampleFilter>(30, 1000, 100, 4);
-    // downsample_filter_->setPusher([force_sensor, axis]() -> Eigen::Vector3d {
-    //   return force_sensor->getCompensatedWrench().block<3, 1>(0, 0);
-    // });
-    admittance_controller_ = std::make_shared<ControllerType>(5, 80, 1000);
+    admittance_controller_ = std::make_shared<ControllerType>(200, 2000, 200);
     admittance_controller_->setDesiredPos(0);
     admittance_controller_->setDesiredForce(0);
-    admittance_controller_->setForceSensor([force_sensor, robot,
-                                            axis]() -> double {
+    admittance_controller_->setForceSensor([force_sensor, robot, axis,
+                                            this]() -> double {
+      static auto start = std::chrono::steady_clock::now();
+      auto now = std::chrono::steady_clock::now();
+      double t =
+          std::chrono::duration_cast<std::chrono::milliseconds>(now - start)
+              .count() /
+          1000.0;
       Eigen::Vector<double, 6> wrench =
           force_sensor->getCompensatedWrench().block<6, 1>(0, 0);
       Eigen::Vector3d force = wrench.block<3, 1>(0, 0);
+      force(0) = 0;
+      force(1) = 0; //只取z轴，x,y度数不准
       force = robot->currentPose().block<3, 3>(0, 0) * force; // 机器人基坐标系
-      return force[axis];                                     // z
+      log_file_ << "t : " << t << " force : " << force.transpose() << std::endl;
+      return force[axis]; // z
     });
     auto initial_pos = robot_->currentPose();
-    throw std::runtime_error("需要按照BaseController3d重写该部分代码");
-    admittance_controller_->setPositionSensor(
-        [robot, initial_pos, axis]() -> double {
-          return robot->currentPose()(axis, 3) - initial_pos(axis, 3);
-        });
-    admittance_controller_->setPositionUpdate(
-        [robot, initial_pos, axis](double pos) -> int {
-          auto new_pose = initial_pos;
-          new_pose(axis, 3) = pos + initial_pos(axis, 3);
-          robot->MoveJointToPose(new_pose);
-          return 0;
-        });
+    ref_position_ = initial_pos(axis, 3);
+    // throw std::runtime_error("需要按照BaseController3d重写该部分代码");
+    // admittance_controller_->setPositionSensor([robot, axis, this]() -> double
+    // {
+    //   return robot->currentPose()(axis, 3) - ref_position_;
+    // });
+    admittance_controller_->setVirtualPositionSensor(0.0);
+    admittance_controller_->setPositionUpdate([robot, axis, initial_pos,
+                                               this](double pos) -> int {
+      auto new_pose = initial_pos;
+      new_pose(axis, 3) = pos + ref_position_;
+      std::cout << "Target " << axis << " : " << std::setprecision(4) << pos
+                << std::endl;
+      static auto start = std::chrono::steady_clock::now();
+      auto now = std::chrono::steady_clock::now();
+      double t =
+          std::chrono::duration_cast<std::chrono::milliseconds>(now - start)
+              .count() /
+          1000.0;
+      log_file_ << "t : " << t
+                << " xyz : " << Eigen::Vector3d(pos, 0, 0).transpose()
+                << std::endl;
+      Eigen::VectorXd joint =
+          robot->topology()->trans_inv(new_pose, robot->currentJointState());
+      log_file_ << "t : " << t << " joint : " << joint.transpose() << std::endl;
+      log_file_
+          << "t : " << t << " actual_xyz : "
+          << (robot->currentPose() - initial_pos).block<3, 1>(0, 3).transpose()
+          << std::endl;
+      log_file_ << "t : " << t
+                << " actual_joint : " << robot->currentJointState().transpose()
+                << std::endl;
+      // robot->MoveJointToPose(new_pose);
+      // MoveJointToPose internally calls setTarget
+      robot->controller()->setTarget(RobotController::RobotJointState(joint));
+      return 0;
+    });
   }
   std::shared_ptr<ControllerType> getAdmittanceController() {
     return admittance_controller_;
@@ -73,6 +102,14 @@ public:
     return 0;
   }
   virtual ~BaseController() = default;
+  double getPos() { return admittance_controller_->getPos(); }
+  double getForce() { return admittance_controller_->getForce(); }
+  double getDesiredPos() { return admittance_controller_->getDesiredPos(); }
+  double getDesiredForce() { return admittance_controller_->getDesiredForce(); }
+  void setDesiredPos(double pos) { admittance_controller_->setDesiredPos(pos); }
+  void setDesiredForce(double force) {
+    admittance_controller_->setDesiredForce(force);
+  }
 
 private:
   std::shared_ptr<Robot> robot_;
@@ -82,6 +119,7 @@ private:
   int axis_; //轴
   double ref_position_;
   std::mutex ref_mutex_;
+  std::fstream log_file_;
 };
 class BaseController3d {
   using ControllerType = AdmittanceController3d;

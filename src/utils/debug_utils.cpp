@@ -6,7 +6,7 @@ double tictok_timer(int command) {
     return 0.0;
   } else {
     auto now = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> duration = now - last;
+    std::chrono::duration<double> duration = now - last;
     last = now;
     return duration.count();
   }

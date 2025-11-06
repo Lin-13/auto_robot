@@ -284,6 +284,26 @@ void test_right(int &signal) {
   fmt::print("m0: {}\n", data["m0"]);
   test_gravity_decompensation(sensor, robot, R_sensor, data);
 }
+void test_empty(void) {
+  std::shared_ptr<ati::FTSensor> sensor = std::make_shared<ati::FTSensor>();
+  sensor->init(RIGHT_ATI_IP);
+  std::shared_ptr<Robot> robot = auboRobotRight();
+  // calib
+  // !!! R_sensor
+  Eigen::Matrix3d R_sensor =
+      Eigen::AngleAxisd(15.0 * M_PI / 180, Eigen::Vector3d::UnitZ())
+          .toRotationMatrix();
+  // 重力标定
+  sensor->setBias();
+  // use calib data
+  auto data = read_gravity_calib_data("gravity_compensation/empty.txt");
+  fmt::print("Read data from gravity_compensation/empty.txt\n");
+  fmt::print("L: {}\n", data["L"]);
+  fmt::print("G_W: {}\n", data["G_W"]);
+  fmt::print("f0: {}\n", data["f0"]);
+  fmt::print("m0: {}\n", data["m0"]);
+  test_gravity_decompensation(sensor, robot, R_sensor, data);
+}
 int test_ft_sensor_right() {
   fmt::print("Init FTSensor right.\n");
   ati::FTSensor right_sensor;
@@ -317,7 +337,8 @@ int main() {
   REGISTER_MONITOR_VARIABLE(local_transform);
   // init device
   // test_left(signal);
-  test_right(signal);
+  // test_right(signal);
+  test_empty();
   fmt::print("Press Ctrl+C to stop server\n");
   server_thread.join();
   return 0;
