@@ -20,8 +20,11 @@ find_package(OpenCV REQUIRED PATHS ${OpenCV4_DIR} NO_DEFAULT_PATH)
 find_package(Eigen3 REQUIRED)
 find_package(fmt REQUIRED)
 find_package(LibXml2 REQUIRED)
-
+find_package(mujoco CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
+
+# mujoco simulate
+add_subdirectory(simulate)
 include_directories(
     include
     dependents/robotSDK/inc
