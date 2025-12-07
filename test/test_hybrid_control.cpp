@@ -179,6 +179,9 @@ void tcp_pose_init(std::shared_ptr<TransformTree> tree,
       left_tcp.block<3, 1>(0, 3) + Eigen::Vector3d(0.0, 0.0, 0.0);
   right_tcp_target.block<3, 1>(0, 3) =
       right_tcp.block<3, 1>(0, 3) + Eigen::Vector3d(0.0, 0.0, 0.0);
+  right_tcp_target(0, 3) = left_tcp_target(0, 3); // 微调
+  right_tcp_target(1, 3) = left_tcp_target(1, 3);
+  // x,y坐标对齐
   // move
   left_tcp_move = left_tcp_target * left_tcp.inverse();
   right_tcp_move = right_tcp_target * right_tcp.inverse();
@@ -276,8 +279,6 @@ void force_control_1d(std::shared_ptr<TransformTree> tree,
   static Eigen::Vector3d monitor_force;
   static int force_control = 1;
   REGISTER_MONITOR_VARIABLE(x);
-  REGISTER_MONITOR_VARIABLE(y);
-  REGISTER_MONITOR_VARIABLE(z);
   REGISTER_MONITOR_VARIABLE(monitor_force);
   REGISTER_MONITOR_VARIABLE(force_control);
   static Eigen::Vector<double, 6> ft_measure;
@@ -300,6 +301,7 @@ void force_control_1d(std::shared_ptr<TransformTree> tree,
     //     robot->currentPose().block<3, 3>(0, 0) * ft_measure.block<3, 1>(0,
     //     0);
     std::this_thread::sleep_until(start + 20ms);
+    hybrid_control->setDesiredPos(x);
     // x = 0.02 * i * 0.01;
     // x = std::clamp(x, -0.05, 0.05);
     // if (monitor_force.x() > -40.0) {
@@ -422,10 +424,10 @@ int main() {
   auto right_robo = auboRobotRight();
   std::shared_ptr<AuboController> left_controller =
       std::dynamic_pointer_cast<AuboController>(left_robo->controller());
-  left_controller->enable_log_ = 1;
+  //   left_controller->enable_log_ = 1;
   std::shared_ptr<AuboController> right_controller =
       std::dynamic_pointer_cast<AuboController>(right_robo->controller());
-  right_controller->enable_log_ = 1;
+  //   right_controller->enable_log_ = 1;
   left_robo->start(30ms);
   right_robo->start(30ms);
 
@@ -437,8 +439,8 @@ int main() {
   tree->set_transform_func(
       "right_end", [right_robo]() { return right_robo->currentPose(); });
   // * 0 测试-无optitrack
-  force_control_1d(tree, right_robo);
-  return 0;
+  //   force_control_1d(tree, right_robo);
+  //   return 0;
   // * 1、计算此时的base误差
   // ! 当机器人发生碰撞或者已经夹取过，base的误差会增大
   calib_base_error(tree, optitrack);
@@ -446,7 +448,7 @@ int main() {
   tcp_pose_init(tree, optitrack, left_robo, right_robo);
   // HybridController hybrid_control;
   // * 3、力控夹紧
-  //   force_control(tree, right_robo);
+  force_control_1d(tree, right_robo);
   // * 4、位置控制
   dual_move(tree, optitrack, left_robo, right_robo);
   // 固定左右TCP的相对位置进行移动

@@ -292,9 +292,10 @@ void calib_replay(std::string robot_name, std::string data_folder) {
   return;
 }
 int main(int argc, char **argv) {
-  calib_handeye_optitrack("left", "target_left", "optitrack_handeye_left");
-  // calib_handeye_optitrack("right", "target_right",
-  // "optitrack_handeye_right");
+  // calib_handeye_optitrack("left", "target_left", "optitrack_handeye_left",
+  // 5);
+  calib_handeye_optitrack("right", "target_right", "optitrack_handeye_right",
+                          5);
   // * replay
   // calib_replay("left", "optitrack_handeye_left");
   // calib_replay("right", "optitrack_handeye_right");
