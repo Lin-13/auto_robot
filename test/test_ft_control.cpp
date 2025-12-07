@@ -40,16 +40,16 @@ int main() {
   // start
   auto ft_sensor = std::make_shared<ati::FTSensor>();
   ft_sensor->init(RIGHT_ATI_IP);
-  // ft_sensor->setBias();
+  ft_sensor->setBias(); // 力传感器已经损坏
   // ft_sensor->setRDTOutputRate(500);
   auto tree = std::make_shared<TransformTree>();
   auto robot = auboRobotRight(30ms);
   std::shared_ptr<AuboController> controller =
       std::dynamic_pointer_cast<AuboController>(robot->controller());
-  controller->enable_log_ = 1;
+  // controller->enable_log_ = 1;
   robot->start(30ms); // TODO : 设置的时间与实际执行的时间不同
   auto ft_gravity_compensation = std::make_shared<FTSensorGravityCompensation>(
-      ft_sensor, "gravity_compensation/right.txt");
+      ft_sensor, "gravity_compensation/empty.txt");
   // right R_sensor :
   Eigen::Matrix3d R_sensor =
       Eigen::AngleAxisd(15.0 * M_PI / 180, Eigen::Vector3d::UnitZ())
@@ -64,10 +64,11 @@ int main() {
     R = R * R_sensor;
     return R;
   });
-  // auto hybrid_control =
-  //     std::make_shared<BaseController>(robot, ft_gravity_compensation, tree);
   auto hybrid_control =
-      std::make_shared<BaseController3d>(robot, ft_gravity_compensation, tree);
+      std::make_shared<BaseController>(robot, ft_gravity_compensation, tree);
+  // auto hybrid_control =
+  //     std::make_shared<BaseController3d>(robot, ft_gravity_compensation,
+  //     tree);
   ft_gravity_compensation->setSoftBias();
   // force
   static double x = 0.0;
@@ -83,11 +84,14 @@ int main() {
         ft_gravity_compensation->getCompensatedWrench().block<3, 1>(0, 0);
     x = 0.02 * i * 0.01;
     x = std::clamp(x, -0.05, 0.05);
-    if (monitor_force.x() > -40.0) {
-      hybrid_control->setDesiredPos(Eigen::Vector3d(x, 0, 0));
-    } else {
-      hybrid_control->setDesiredForce(Eigen::Vector3d(-40, 0, 0));
-    }
+    // 3d : 现在不可用
+    // if (monitor_force.x() > -40.0) {
+    //   hybrid_control->setDesiredPos(Eigen::Vector3d(x, 0, 0));
+    // } else {
+    //   hybrid_control->setDesiredForce(Eigen::Vector3d(-40, 0, 0));
+    // }
+    // 1d : 勉强可用
+    hybrid_control->setDesiredPos(0);
     // double fx = 0.02 * i * 10;
     // fx = std::clamp(fx, -10.0, 10.0);
     // hybrid_control->setDesiredForce(Eigen::Vector3d(fx, 0, 0));

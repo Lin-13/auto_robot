@@ -285,6 +285,7 @@ void force_control_1d(std::shared_ptr<TransformTree> tree,
   std::shared_ptr<BaseController> hybrid_control =
       std::make_shared<BaseController>(robot, ft_gravity_compensation, tree, 0);
   ft_gravity_compensation->setSoftBiasMean(500ms);
+  hybrid_control->setDesiredForce(-50);
   for (int i = 0;; i++) {
     PROFILE();
     auto start = std::chrono::steady_clock::now();
@@ -418,8 +419,6 @@ int main() {
   // 初始化实例
   std::cout << "Initializing instances..." << std::endl;
   std::thread server(RunMonitorServer, 50051);
-  auto optitrack = std::make_shared<OptiTrackRigidBodyCap>(
-      std::vector<std::string>{"target_left", "target_right"}, "192.168.1.172");
   auto left_robo = auboRobotLeft();
   auto right_robo = auboRobotRight();
   std::shared_ptr<AuboController> left_controller =
@@ -427,7 +426,7 @@ int main() {
   //   left_controller->enable_log_ = 1;
   std::shared_ptr<AuboController> right_controller =
       std::dynamic_pointer_cast<AuboController>(right_robo->controller());
-  //   right_controller->enable_log_ = 1;
+  right_controller->enable_log_ = 1;
   left_robo->start(30ms);
   right_robo->start(30ms);
 
@@ -439,8 +438,10 @@ int main() {
   tree->set_transform_func(
       "right_end", [right_robo]() { return right_robo->currentPose(); });
   // * 0 测试-无optitrack
-  //   force_control_1d(tree, right_robo);
-  //   return 0;
+  force_control_1d(tree, right_robo);
+  return 0;
+  auto optitrack = std::make_shared<OptiTrackRigidBodyCap>(
+      std::vector<std::string>{"target_left", "target_right"}, "192.168.1.172");
   // * 1、计算此时的base误差
   // ! 当机器人发生碰撞或者已经夹取过，base的误差会增大
   calib_base_error(tree, optitrack);

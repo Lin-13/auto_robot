@@ -596,7 +596,7 @@ def print_basic_stats(data):
 def main():
     """主函数"""
     filename = "../build/pose_log.txt"
-
+    # filename = "data/pose_log_3.txt"
     if len(sys.argv) > 1:
         try:
             choice = sys.argv[1]

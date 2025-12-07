@@ -35,7 +35,9 @@ public:
     force_sensor_ = force_sensor;
     axis_ = axis;
     force_sensor->bindPoseDetector([robot]() { return robot->currentPose(); });
-    admittance_controller_ = std::make_shared<ControllerType>(200, 2000, 200);
+    // admittance_controller_ = std::make_shared<ControllerType>(200, 2000,
+    // 200);
+    admittance_controller_ = std::make_shared<ControllerType>(2000, 8000, 600);
     admittance_controller_->setDesiredPos(0);
     admittance_controller_->setDesiredForce(0);
     admittance_controller_->setForceSensor([force_sensor, robot, axis,
@@ -50,7 +52,7 @@ public:
           force_sensor->getCompensatedWrench().block<6, 1>(0, 0);
       Eigen::Vector3d force = wrench.block<3, 1>(0, 0);
       force(0) = 0;
-      force(1) = 0; //只取z轴，x,y度数不准
+      force(1) = 0; // 只取z轴，x,y度数不准
       force = robot->currentPose().block<3, 3>(0, 0) * force; // 机器人基坐标系
       log_file_ << "t : " << t << " force : " << force.transpose() << std::endl;
       return force[axis]; // z
@@ -116,7 +118,7 @@ private:
   std::shared_ptr<FTSensorGravityCompensation> force_sensor_;
   std::shared_ptr<TransformTree> transform_tree_;
   std::shared_ptr<ControllerType> admittance_controller_;
-  int axis_; //轴
+  int axis_; // 轴
   double ref_position_;
   std::mutex ref_mutex_;
   std::fstream log_file_;
