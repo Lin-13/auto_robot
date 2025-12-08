@@ -160,19 +160,21 @@ public:
 
 private:
   void clientLoop() {
+    static std::vector<std::string> varNames = {"x",    "y",    "z",
+                                                "rotx", "roty", "rotz"};
     while (running_) {
-      std::string value, type, varName = "x";
-      bool found = client_->GetVariable(varName, value, type);
-
-      if (position_.count("x")) {
-        varName = "x";
-        value = std::to_string(position_["x"]);
-        type = "double";
-      }
-      if (found) {
+      for (const auto &varName : varNames) {
+        std::string value, type;
+        bool found = client_->GetVariable(varName, value, type);
         std::cout << "\033[2J\033[H";
-        std::cout << varName << " (" << type << "): " << value << std::endl;
-        client_->SetVariable(varName, value);
+        if (position_.count(varName)) {
+          value = std::to_string(position_[varName]);
+          type = "double";
+          if (found) {
+            std::cout << varName << " : " << value << "  ";
+            client_->SetVariable(varName, value);
+          }
+        }
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
