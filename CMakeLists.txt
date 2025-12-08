@@ -22,6 +22,7 @@ find_package(fmt REQUIRED)
 find_package(LibXml2 REQUIRED)
 find_package(mujoco CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
+find_package(sdl2 CONFIG REQUIRED)
 
 # mujoco simulate
 add_subdirectory(simulate)
@@ -31,6 +32,7 @@ include_directories(
     ${OpenCV_INCLUDE_DIRS}
     ${EIGEN3_INCLUDE_DIRS}
     ${LIBXML2_INCLUDE_DIR}
+    ${SDL2_INCLUDE_DIRS}
 )
 link_directories(
     include
@@ -269,6 +271,15 @@ target_link_libraries(
 
     ${GTEST_LIBRARIES}
     GTest::gtest_main
+)
+add_executable(JoyStickTest test/test_joystick.cpp
+    src/joystick/joystick.cpp
+)
+target_link_libraries(
+    JoyStickTest
+    PRIVATE
+    utils
+    ${SDL2_LIBRARIES}
 )
 
 # Google Test
