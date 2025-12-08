@@ -37,7 +37,8 @@ public:
     force_sensor->bindPoseDetector([robot]() { return robot->currentPose(); });
     // admittance_controller_ = std::make_shared<ControllerType>(200, 2000,
     // 200);
-    admittance_controller_ = std::make_shared<ControllerType>(2000, 8000, 600);
+    admittance_controller_ =
+        std::make_shared<ControllerType>(4000, 16000, 1000);
     admittance_controller_->setDesiredPos(0);
     admittance_controller_->setDesiredForce(0);
     admittance_controller_->setForceSensor([force_sensor, robot, axis,

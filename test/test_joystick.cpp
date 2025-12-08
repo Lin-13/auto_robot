@@ -1,4 +1,5 @@
 #include "joystick/joystick.h"
+#include <context_monitor/monitor_client.h>
 #include <iostream>
 class GamePad {
 public:
@@ -52,7 +53,160 @@ private:
   bool left_shoulder_button_ = false;
   bool right_shoulder_button_ = false;
 };
+class KeyboardControlPad {
+public:
+  std::unordered_map<std::string, double>
+  update(const std::unordered_map<std::string, int> &data, double scale = 1) {
+    if (data.count("w") || data.count("s")) {
+      int value = 0;
+      if (data.count("w")) {
+        value += data.at("w") > 0 ? 1 : 0;
+      }
+      if (data.count("s")) {
+        value -= data.at("s") > 0 ? 1 : 0;
+      }
+      JoyStickAxis["y"] += value * scale;
+    }
+    if (data.count("a") || data.count("d")) {
+      int value = 0;
+      if (data.count("a")) {
+        value -= data.at("a") > 0 ? 1 : 0;
+      }
+      if (data.count("d")) {
+        value += data.at("d") > 0 ? 1 : 0;
+      }
+      JoyStickAxis["x"] += value * scale;
+    }
+    if (data.count("r") || data.count("f")) {
+      int value = 0;
+      if (data.count("r")) {
+        value += data.at("r") > 0 ? 1 : 0;
+      }
+      if (data.count("f")) {
+        value -= data.at("f") > 0 ? 1 : 0;
+      }
+      JoyStickAxis["z"] += value * scale;
+    }
+    if (data.count("j") || data.count("l")) {
+      int value = 0;
+      if (data.count("j")) {
+        value -= data.at("j") > 0 ? 1 : 0;
+      }
+      if (data.count("l")) {
+        value += data.at("l") > 0 ? 1 : 0;
+      }
+      JoyStickAxis["roty"] += value * scale;
+    }
+    if (data.count("i") || data.count("k")) {
+      int value = 0;
+      if (data.count("i")) {
+        value += data.at("i") > 0 ? 1 : 0;
+      }
+      if (data.count("k")) {
+        value -= data.at("k") > 0 ? 1 : 0;
+      }
+      JoyStickAxis["rotx"] += value * scale;
+    }
+    if (data.count("p") || data.count(";")) {
+      int value = 0;
+      if (data.count("p")) {
+        value += data.at("p") > 0 ? 1 : 0;
+      }
+      if (data.count(";")) {
+        value -= data.at(";") > 0 ? 1 : 0;
+      }
+      JoyStickAxis["rotz"] += value * scale;
+    }
+    return JoyStickAxis;
+  }
 
+  void print() {
+#ifdef _WIN32
+    system("cls");
+#else
+    std::cout << "\033[2J\033[H";
+#endif
+    std::cout << "===== XYZRPY =====\n";
+    std::cout << "位置: (" << JoyStickAxis["x"] << ", " << JoyStickAxis["y"]
+              << ", " << JoyStickAxis["z"] << ")\n";
+    std::cout << "姿态: (" << JoyStickAxis["rotx"] << ", "
+              << JoyStickAxis["roty"] << ", " << JoyStickAxis["rotz"] << ")\n";
+    std::cout << "==================\n";
+  }
+
+private:
+  std::unordered_map<std::string, double> JoyStickAxis{
+      {"x", 0}, {"y", 0}, {"z", 0}, {"rotx", 0}, {"roty", 0}, {"rotz", 0}};
+  bool left_shoulder_button_ = false;
+  bool right_shoulder_button_ = false;
+};
+class PoseClient {
+public:
+  PoseClient() {
+    client_ = std::make_shared<MonitorClient>(grpc::CreateChannel(
+        "localhost:50051", grpc::InsecureChannelCredentials()));
+    client_thread_ = std::thread(&PoseClient::clientLoop, this);
+  }
+  void UpdatePose(const std::unordered_map<std::string, double> &pos) {
+    position_ = pos;
+  }
+  void Stop() {
+    running_ = false;
+    if (client_thread_.joinable()) {
+      client_thread_.join();
+    }
+  }
+  ~PoseClient() { Stop(); }
+
+private:
+  void clientLoop() {
+    while (running_) {
+      std::string value, type, varName = "x";
+      bool found = client_->GetVariable(varName, value, type);
+
+      if (position_.count("x")) {
+        varName = "x";
+        value = std::to_string(position_["x"]);
+        type = "double";
+      }
+      if (found) {
+        std::cout << "\033[2J\033[H";
+        std::cout << varName << " (" << type << "): " << value << std::endl;
+        client_->SetVariable(varName, value);
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+  }
+  std::unique_ptr<MonitorService::Stub> stub_;
+  std::shared_ptr<MonitorClient> client_;
+  std::atomic<bool> running_{true};
+  std::thread client_thread_;
+  std::unordered_map<std::string, double> position_;
+};
+void printPressedKeys(const std::unordered_map<std::string, int> &status) {
+  static std::unordered_map<std::string, int> last_printed =
+      status; // 记录上一次输出状态
+  bool has_pressed = false;
+
+  // 只打印状态变化的按键（避免刷屏）
+  for (const auto &pair : status) {
+    const std::string &key = pair.first;
+    int value = pair.second;
+
+    // 仅当按键按下 且 上一次未按下时打印
+    if (value != 0 && last_printed[key] == 0) {
+      std::cout << "Key " << key << " pressed.";
+      has_pressed = true;
+    }
+    // 记录当前状态
+    last_printed[key] = value;
+  }
+
+  // 清空行（可选）
+  if (!has_pressed) {
+    std::cout << "\r" << std::flush;
+  }
+}
 void ProcessGameData(JoyStickSDL &joystick, GamePad &gamepad,
                      std::atomic<bool> &running) {
   while (running) {
@@ -66,7 +220,23 @@ void ProcessGameData(JoyStickSDL &joystick, GamePad &gamepad,
 int main(int argc, char *argv[]) {
   JoyStickSDL joystick;
   GamePad gamepad;
-
+  KeyboardSDL keyboard;
+  KeyboardControlPad keyboardpad;
+  PoseClient pose_client;
+  std::cout << "初始化键盘监听..." << std::endl;
+  if (keyboard.InitKeyboard() != 0) {
+    std::cerr << "键盘初始化失败！" << std::endl;
+    return -1;
+  }
+  while (1) {
+    auto status = keyboard.UpdateState();
+    // printPressedKeys(status);
+    auto pose = keyboardpad.update(status, 0.01 * 0.005);
+    // keyboardpad.print();
+    pose_client.UpdatePose(pose); // Update pose with keyboard input if needed
+    SDL_Delay(10);
+  }
+  //   runMonitorClient();
   if (joystick.InitController() != 0) {
     std::cerr << "控制器初始化失败！" << std::endl;
     return -1;

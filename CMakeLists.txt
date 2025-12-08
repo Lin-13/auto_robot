@@ -280,6 +280,7 @@ target_link_libraries(
     PRIVATE
     utils
     ${SDL2_LIBRARIES}
+    context_monitor
 )
 
 # Google Test

@@ -39,3 +39,23 @@ private:
   bool initialized_{false};
   std::thread run_thread_;
 };
+class KeyboardSDL {
+public:
+  KeyboardSDL();
+  int InitKeyboard();
+  std::unordered_map<std::string, int> UpdateState();
+  std::unordered_map<std::string, int> getStatus();
+  ~KeyboardSDL();
+
+private:
+  SDL_Window *window_ = nullptr;
+  SDL_Renderer *renderer_ = nullptr; // 新增渲染器，确保窗口上下文有效
+  std::unordered_map<std::string, int> KeyboardMetaData{
+      {"a", 0}, {"s", 0}, {"d", 0}, {"w", 0}, {"r", 0}, {"f", 0},
+      {"j", 0}, {"k", 0}, {"l", 0}, {"i", 0}, {"p", 0}, {";", 0}};
+  std::unordered_map<std::string, int>
+      last_status_; // 记录上一帧状态，避免重复输出
+  std::mutex tex_;
+  bool initialized_{false};
+  const Uint8 *keyboard_state_;
+};
