@@ -1,5 +1,6 @@
 #include "context_monitor/monitor_client.h"
 #include "context_monitor/monitor_server.h"
+#include "context_monitor/reflection.h"
 #include <Eigen/Core>
 #include <chrono>
 #include <iostream>
@@ -101,6 +102,7 @@ int main(int argc, char *argv[]) {
     runClient();
   } else {
     // 启动gRPC服务器线程
+    auto &reflection_system = ReflectionSystem::getInstance();
     std::thread server_thread(RunMonitorServer, 50051);
     static int static_counter = 0;
     REGISTER_MONITOR_VARIABLE(static_counter);
@@ -112,6 +114,14 @@ int main(int argc, char *argv[]) {
     REGISTER_MONITOR_VARIABLE(shared_counter);
     Eigen::Matrix4d local_transform = Eigen::Matrix4d::Identity();
     REGISTER_MONITOR_VARIABLE(local_transform);
+    double local_temperature = 36.5;
+    {
+      REGISTER_MONITOR_LOCAL_VARIABLE(local_temperature);
+      while (local_counter == 0) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+      }
+    }
+
     // 运行主程序
     mainProgramLoop();
 

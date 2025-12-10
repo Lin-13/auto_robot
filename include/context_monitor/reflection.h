@@ -126,7 +126,10 @@ public:
     std::lock_guard<std::timed_mutex> lock(mutex_);
     variables_[name] = {&variable, std::make_unique<ConcreteTypeInfo<T>>()};
   }
-
+  void unregisterVariable(const std::string &name) {
+    std::lock_guard<std::timed_mutex> lock(mutex_);
+    variables_.erase(name);
+  }
   // 获取变量值
   bool getVariable(const std::string &name, std::string &value,
                    std::string &type) const {
@@ -174,9 +177,29 @@ public:
     return names;
   }
 };
+/**
+ * @brief 局部变量注册守卫类，用于在作用域内注册变量，离开作用域时自动注销
+ *
+ */
+class LocalVariableGuard {
+public:
+  LocalVariableGuard(const std::string &name) : name_(name) {}
+  ~LocalVariableGuard() {
+    ReflectionSystem::getInstance().unregisterVariable(name_);
+  }
 
+private:
+  std::string name_;
+};
 // 注册变量的宏
 #define REGISTER_MONITOR_VARIABLE(name)                                        \
-  ReflectionSystem::getInstance().registerVariable(#name, name)
-
+  ReflectionSystem::getInstance().registerVariable(#name, name);
+/**
+ * @brief
+ * 用于注册局部变量的宏，在REGISTER_MONITOR_LOCAL_VARIABLE作用域结束时自动注销
+ *
+ */
+#define REGISTER_MONITOR_LOCAL_VARIABLE(name)                                  \
+  LocalVariableGuard __local_var_guard_##name(#name);                          \
+  ReflectionSystem::getInstance().registerVariable(#name, name);
 #endif // REFLECTION_H
