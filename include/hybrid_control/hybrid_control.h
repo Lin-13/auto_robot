@@ -70,8 +70,8 @@ public:
                                                this](double pos) -> int {
       auto new_pose = initial_pos;
       new_pose(axis, 3) = pos + ref_position_;
-      std::cout << "Target " << axis << " : " << std::setprecision(4) << pos
-                << std::endl;
+      // std::cout << "Target " << axis << " : " << std::setprecision(4) << pos
+      //           << std::endl;
       static auto start = std::chrono::steady_clock::now();
       auto now = std::chrono::steady_clock::now();
       double t =

@@ -41,12 +41,12 @@ int AuboController::Initialize(std::chrono::milliseconds timer_period) {
   robot_interface_.robotServiceInitGlobalMoveProfile();
   // 25->50 deg/s^2
   aubo_robot_namespace::JointVelcAccParam jointMaxAcc;
-  jointMaxAcc.jointPara[0] = 2.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[1] = 2.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[2] = 2.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[3] = 2.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[4] = 2.0 / 180.0 * M_PI;
-  jointMaxAcc.jointPara[5] = 2.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[0] = 1.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[1] = 1.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[2] = 1.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[3] = 1.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[4] = 1.0 / 180.0 * M_PI;
+  jointMaxAcc.jointPara[5] = 1.0 / 180.0 * M_PI;
   // The interface requires the unit to be radians
   robot_interface_.robotServiceSetGlobalMoveJointMaxAcc(jointMaxAcc);
 
@@ -61,7 +61,7 @@ int AuboController::Initialize(std::chrono::milliseconds timer_period) {
   robot_interface_.robotServiceSetGlobalMoveJointMaxVelc(jointMaxVelc);
 
   double lineMoveMaxAcc;
-  lineMoveMaxAcc = 0.02; // Units m/s2
+  lineMoveMaxAcc = 0.01; // Units m/s2
   robot_interface_.robotServiceSetGlobalMoveEndMaxLineAcc(lineMoveMaxAcc);
   robot_interface_.robotServiceSetGlobalMoveEndMaxAngleAcc(lineMoveMaxAcc);
 

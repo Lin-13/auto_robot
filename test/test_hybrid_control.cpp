@@ -43,8 +43,9 @@ std::shared_ptr<TransformTree> create_tree() {
   //       Eigen::AngleAxisd(30.0 * M_PI / 180, Eigen::Vector3d::UnitZ())
   //           .toRotationMatrix();
   // 去掉力传感器
+  // 夹具进行了拆装：-15->165
   left_tcp.block<3, 3>(0, 0) =
-      Eigen::AngleAxisd(-15.0 * M_PI / 180, Eigen::Vector3d::UnitZ())
+      Eigen::AngleAxisd(165.0 * M_PI / 180, Eigen::Vector3d::UnitZ())
           .toRotationMatrix();
   left_tcp.block<3, 1>(0, 3) = Eigen::Vector3d(0.0, 0.0, 0.143755);
   //   tree->add_node("left_tcp", left_tcp, nullptr, "left_ftsensor");
@@ -94,6 +95,12 @@ void calib_base_error(std::shared_ptr<TransformTree> tree,
       optitrack->GetTransformcam2target("target_left");
   Eigen::Matrix4d right_target_actual =
       optitrack->GetTransformcam2target("target_right");
+  std::cout << "Left target actual from optitrack: \n"
+            << left_target_actual << std::endl;
+  std::cout << "Left target from tree: \n" << left_target << std::endl;
+  std::cout << "Right target actual from optitrack: \n"
+            << right_target_actual << std::endl;
+  std::cout << "Right target from tree: \n" << right_target << std::endl;
   Eigen::Matrix4d left_target_error =
       left_target_actual.inverse() * left_target;
   std::cout << "Left target estimate error : "
@@ -230,11 +237,11 @@ void force_control(std::shared_ptr<TransformTree> tree,
   static double x = 0.0, y = 0.0, z = 0.0;
   static Eigen::Vector3d monitor_force;
   static int force_control = 1;
-  REGISTER_MONITOR_VARIABLE(x);
-  REGISTER_MONITOR_VARIABLE(y);
-  REGISTER_MONITOR_VARIABLE(z);
-  REGISTER_MONITOR_VARIABLE(monitor_force);
-  REGISTER_MONITOR_VARIABLE(force_control);
+  REGISTER_MONITOR_LOCAL_VARIABLE(x);
+  REGISTER_MONITOR_LOCAL_VARIABLE(y);
+  REGISTER_MONITOR_LOCAL_VARIABLE(z);
+  REGISTER_MONITOR_LOCAL_VARIABLE(monitor_force);
+  REGISTER_MONITOR_LOCAL_VARIABLE(force_control);
   for (int i = 0;; i++) {
     PROFILE();
     auto start = std::chrono::steady_clock::now();
@@ -278,14 +285,14 @@ void force_control_1d(std::shared_ptr<TransformTree> tree,
   static double x = 0.0, y = 0.0, z = 0.0;
   static Eigen::Vector3d monitor_force;
   static int force_control = 1;
-  REGISTER_MONITOR_VARIABLE(x);
-  REGISTER_MONITOR_VARIABLE(monitor_force);
-  REGISTER_MONITOR_VARIABLE(force_control);
+  REGISTER_MONITOR_LOCAL_VARIABLE(x);
+  REGISTER_MONITOR_LOCAL_VARIABLE(monitor_force);
+  REGISTER_MONITOR_LOCAL_VARIABLE(force_control);
   static Eigen::Vector<double, 6> ft_measure;
   std::shared_ptr<BaseController> hybrid_control =
       std::make_shared<BaseController>(robot, ft_gravity_compensation, tree, 0);
   ft_gravity_compensation->setSoftBiasMean(500ms);
-  hybrid_control->setDesiredForce(-50);
+  hybrid_control->setDesiredForce(0);
   for (int i = 0;; i++) {
     PROFILE();
     auto start = std::chrono::steady_clock::now();
@@ -317,9 +324,7 @@ void dual_move(std::shared_ptr<TransformTree> tree,
                std::shared_ptr<Robot> left_robo,
                std::shared_ptr<Robot> right_robo) {
   static int dual_move = 1;
-  static double virtual_tcp_move_x = 0, virtual_tcp_move_y = 0,
-                virtual_tcp_move_z = 0, virtual_tcp_rotate_z = 0,
-                virtual_tcp_rotate_y = 0, virtual_tcp_rotate_x = 0;
+  static double x = 0, y = 0, z = 0, rotx = 0, roty = 0, rotz = 0;
   static Eigen::Matrix4d target_left =
       optitrack->GetTransformcam2target("target_left");
   static Eigen::Matrix4d target_right =
@@ -333,16 +338,17 @@ void dual_move(std::shared_ptr<TransformTree> tree,
   Eigen::Matrix4d vir2right = VirtualTCP.inverse() * target_right;
   int joint_moving = 0, move_start_command = 0;
   double t = 0;
+  double period_s = 1.0; // 周期
   // monitor
-  REGISTER_MONITOR_VARIABLE(t);
-  REGISTER_MONITOR_VARIABLE(virtual_tcp_move_x);
-  REGISTER_MONITOR_VARIABLE(virtual_tcp_move_y);
-  REGISTER_MONITOR_VARIABLE(virtual_tcp_move_z);
-  REGISTER_MONITOR_VARIABLE(virtual_tcp_rotate_x);
-  REGISTER_MONITOR_VARIABLE(virtual_tcp_rotate_y);
-  REGISTER_MONITOR_VARIABLE(virtual_tcp_rotate_z);
-  REGISTER_MONITOR_VARIABLE(move_start_command);
-  REGISTER_MONITOR_VARIABLE(joint_moving);
+  REGISTER_MONITOR_LOCAL_VARIABLE(t);
+  REGISTER_MONITOR_LOCAL_VARIABLE(x);
+  REGISTER_MONITOR_LOCAL_VARIABLE(y);
+  REGISTER_MONITOR_LOCAL_VARIABLE(z);
+  REGISTER_MONITOR_LOCAL_VARIABLE(rotx);
+  REGISTER_MONITOR_LOCAL_VARIABLE(roty);
+  REGISTER_MONITOR_LOCAL_VARIABLE(rotz);
+  REGISTER_MONITOR_LOCAL_VARIABLE(move_start_command);
+  REGISTER_MONITOR_LOCAL_VARIABLE(joint_moving);
   for (int i = 0;; i++) {
     // 更新
     tic();
@@ -355,15 +361,11 @@ void dual_move(std::shared_ptr<TransformTree> tree,
     target_right = optitrack->GetTransformcam2target("target_right");
     // 计算新的Target
     Eigen::Matrix4d VirtualTCPTarget = VirtualTCP;
-    VirtualTCPTarget.block<3, 1>(0, 3) += Eigen::Vector3d(
-        virtual_tcp_move_x, virtual_tcp_move_y, virtual_tcp_move_z);
+    VirtualTCPTarget.block<3, 1>(0, 3) += Eigen::Vector3d(x, y, z);
     VirtualTCPTarget.block<3, 3>(0, 0) =
-        (Eigen::AngleAxisd(virtual_tcp_rotate_z * M_PI / 180,
-                           Eigen::Vector3d::UnitZ()) *
-         Eigen::AngleAxisd(virtual_tcp_rotate_y * M_PI / 180,
-                           Eigen::Vector3d::UnitY()) *
-         Eigen::AngleAxisd(virtual_tcp_rotate_x * M_PI / 180,
-                           Eigen::Vector3d::UnitX()))
+        (Eigen::AngleAxisd(rotz * M_PI / 180, Eigen::Vector3d::UnitZ()) *
+         Eigen::AngleAxisd(roty * M_PI / 180, Eigen::Vector3d::UnitY()) *
+         Eigen::AngleAxisd(rotx * M_PI / 180, Eigen::Vector3d::UnitX()))
             .toRotationMatrix();
     Eigen::Matrix4d target_left_target = VirtualTCPTarget * vir2left;
     Eigen::Matrix4d target_right_target = VirtualTCPTarget * vir2right;
@@ -379,12 +381,13 @@ void dual_move(std::shared_ptr<TransformTree> tree,
     auto left_joints = left_robo->currentJointState();
     left_robo->MoveJoint(
         {{0, left_robo->topology()->trans_inv(T_be_left, left_joints)},
-         {1, left_robo->topology()->trans_inv(T_be_left_target, left_joints)}},
+         {period_s,
+          left_robo->topology()->trans_inv(T_be_left_target, left_joints)}},
         30ms, 0, 0);
     auto right_joints = right_robo->currentJointState();
     right_robo->MoveJoint(
         {{0, right_robo->topology()->trans_inv(T_be_right, right_joints)},
-         {1,
+         {period_s,
           right_robo->topology()->trans_inv(T_be_right_target, right_joints)}},
         30ms, 0, 0);
     if (move_start_command == 1) {
@@ -404,7 +407,8 @@ void dual_move(std::shared_ptr<TransformTree> tree,
                        .transpose()
                 << std::endl;
     }
-    std::this_thread::sleep_for(1.1s);
+    std::this_thread::sleep_for(std::chrono::duration<double>(period_s * 1) +
+                                0.1s);
     joint_moving = 0;
     t = toc();
   }
@@ -426,7 +430,7 @@ int main() {
   //   left_controller->enable_log_ = 1;
   std::shared_ptr<AuboController> right_controller =
       std::dynamic_pointer_cast<AuboController>(right_robo->controller());
-  right_controller->enable_log_ = 1;
+  //   right_controller->enable_log_ = 1;
   left_robo->start(30ms);
   right_robo->start(30ms);
 
@@ -438,8 +442,8 @@ int main() {
   tree->set_transform_func(
       "right_end", [right_robo]() { return right_robo->currentPose(); });
   // * 0 测试-无optitrack
-  force_control_1d(tree, right_robo);
-  return 0;
+  //   force_control_1d(tree, right_robo);
+  //   return 0;
   auto optitrack = std::make_shared<OptiTrackRigidBodyCap>(
       std::vector<std::string>{"target_left", "target_right"}, "192.168.1.172");
   // * 1、计算此时的base误差
