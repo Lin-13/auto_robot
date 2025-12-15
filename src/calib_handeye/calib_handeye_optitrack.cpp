@@ -90,6 +90,35 @@
 //   0.779289   0.624278  -0.054637 -0.0522052
 //   0.121479 -0.0649565   0.990466   0.169822
 //          0          0          0          1
+// ! 标定结果 2025/12/15 12:01
+// ? left
+// Calibration residual - se3距离度量(平方范数): 0.0032637194097666954
+// T_base2camera result:
+//  0.0545734 -0.0212487   0.998284   -1.24862
+//   0.998415  0.0149411 -0.0542625  -0.677085
+// -0.0137625   0.999663  0.0220304    -0.1562
+//          0          0          0          1
+//  RPY:  88.7375 0.788556  86.8713
+// T_end2target result:
+//   0.974211  -0.161237  -0.157844 -0.0852167
+//  -0.173864  -0.982302 -0.0696677 0.00227761
+//  -0.143817  0.0953144  -0.985003   0.126744
+//          0          0          0          1
+//  RPY:  174.473  8.26879 -10.1188
+// ? right
+// Calibration residual - se3距离度量(平方范数): 0.0014908037337646228
+// T_base2camera result:
+//   -0.0938892    -0.011685     0.995514      0.13458
+//     0.995582 -0.000181593    0.0938935    -0.959317
+// -0.000916365     0.999932    0.0116504    -0.154987
+//            0            0            0            1
+//  RPY:   89.3325 0.0525038   95.3874
+// T_end2target result:
+//    0.75726  -0.652892  0.0170003 -0.0747535
+//   0.651926   0.757196  0.0405762 -0.0549088
+// -0.0393644 -0.0196438   0.999032   0.170732
+//          0          0          0          1
+//  RPY: -1.12645    2.256  40.7252
 #include <aubo/aubo_robot.h>
 #include <filesystem>
 #include <fmt/format.h>
@@ -321,10 +350,13 @@ void calib_replay(std::string robot_name, std::string data_folder) {
 }
 int main(int argc, char **argv) {
   // left handeye calibration
-  calib_handeye_optitrack("left", "target_left", "optitrack_handeye_left", 5);
+  // calib_handeye_optitrack("left", "target_left", "optitrack_handeye_left",
+  // 5);
+
   // right handeye calibration
-  // calib_handeye_optitrack("right", "target_right", "optitrack_handeye_right",
-  //                         5);
+  calib_handeye_optitrack("right", "target_right", "optitrack_handeye_right",
+                          5);
+
   // * replay
   // calib_replay("left", "optitrack_handeye_left");
   // calib_replay("right", "optitrack_handeye_right");

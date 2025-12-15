@@ -103,6 +103,7 @@ void calib_base_error(std::shared_ptr<TransformTree> tree,
   std::cout << "Right target from tree: \n" << right_target << std::endl;
   Eigen::Matrix4d left_target_error =
       left_target_actual.inverse() * left_target;
+  std::cout << "==============Estimate Result===============\n";
   std::cout << "Left target estimate error : "
             << left_target_error.block<3, 1>(0, 3).norm() << "\n"
             << "RPY:"
@@ -138,6 +139,7 @@ void calib_base_error(std::shared_ptr<TransformTree> tree,
             << RotToRPY(right_base_error.block<3, 3>(0, 0)).transpose() * 180 /
                    M_PI
             << std::endl;
+  std::cout << "============================================" << std::endl;
   return;
 }
 /**
@@ -413,6 +415,113 @@ void dual_move(std::shared_ptr<TransformTree> tree,
     t = toc();
   }
 }
+// dual_move 的伺服控制方法 5Hz
+void dual_move_servo(std::shared_ptr<TransformTree> tree,
+                     std::shared_ptr<OptiTrackRigidBodyCap> optitrack,
+                     std::shared_ptr<Robot> left_robo,
+                     std::shared_ptr<Robot> right_robo) {
+  static int dual_move = 1;
+  static double x = 0, y = 0, z = 0, rotx = 0, roty = 0, rotz = 0;
+  static Eigen::Matrix4d target_left =
+      optitrack->GetTransformcam2target("target_left");
+  static Eigen::Matrix4d target_right =
+      optitrack->GetTransformcam2target("target_right");
+  Eigen::Matrix4d VirtualTCP = Eigen::Matrix4d::Identity();
+  VirtualTCP.block<3, 1>(0, 3) =
+      (optitrack->GetTransformcam2target("target_left").block<3, 1>(0, 3) +
+       optitrack->GetTransformcam2target("target_right").block<3, 1>(0, 3)) /
+      2;
+  Eigen::Matrix4d vir2left = VirtualTCP.inverse() * target_left;
+  Eigen::Matrix4d vir2right = VirtualTCP.inverse() * target_right;
+  double t = 0;
+  double period_ms = 30.0; // 周期
+  // monitor
+  REGISTER_MONITOR_LOCAL_VARIABLE(t);
+  REGISTER_MONITOR_LOCAL_VARIABLE(x);
+  REGISTER_MONITOR_LOCAL_VARIABLE(y);
+  REGISTER_MONITOR_LOCAL_VARIABLE(z);
+  REGISTER_MONITOR_LOCAL_VARIABLE(rotx);
+  REGISTER_MONITOR_LOCAL_VARIABLE(roty);
+  REGISTER_MONITOR_LOCAL_VARIABLE(rotz);
+  for (int i = 0;; i++) {
+    // 更新
+    tic();
+    tree->update();
+    auto T_cb_left = tree->get_global_transform("left_base");
+    auto T_cb_right = tree->get_global_transform("right_base");
+    auto T_be_left = tree->rel_transform_rel("left_base", "left_end");
+    auto T_be_right = tree->rel_transform_rel("right_base", "right_end");
+    target_left = optitrack->GetTransformcam2target("target_left");
+    target_right = optitrack->GetTransformcam2target("target_right");
+    double t1 = toc(); // ~110ms
+    // std::cout << "Update Tree time: " << t1 * 1000 << " ms" << std::endl;
+    // 计算新的Target
+    Eigen::Matrix4d VirtualTCPTarget = VirtualTCP;
+    VirtualTCPTarget.block<3, 1>(0, 3) += Eigen::Vector3d(x, y, z);
+    VirtualTCPTarget.block<3, 3>(0, 0) =
+        (Eigen::AngleAxisd(rotz * M_PI / 180, Eigen::Vector3d::UnitZ()) *
+         Eigen::AngleAxisd(roty * M_PI / 180, Eigen::Vector3d::UnitY()) *
+         Eigen::AngleAxisd(rotx * M_PI / 180, Eigen::Vector3d::UnitX()))
+            .toRotationMatrix();
+    Eigen::Matrix4d target_left_target = VirtualTCPTarget * vir2left;
+    Eigen::Matrix4d target_right_target = VirtualTCPTarget * vir2right;
+    Eigen::Matrix4d target_left_move =
+        target_left_target * target_left.inverse();
+    Eigen::Matrix4d target_right_move =
+        target_right_target * target_right.inverse();
+    Eigen::Matrix4d T_be_left_target =
+        T_cb_left.inverse() * target_left_move * T_cb_left * T_be_left;
+    Eigen::Matrix4d T_be_right_target =
+        T_cb_right.inverse() * target_right_move * T_cb_right * T_be_right;
+    double t2 = toc(); // ~ 0ms
+    // std::cout << "Compute Target time: " << (t2 - t1) * 1000 << " ms"
+    //           << std::endl;
+    // move joint
+    auto left_joints = left_robo->currentJointState();
+    left_robo->MoveJoint(
+        {{0, left_robo->topology()->trans_inv(T_be_left, left_joints)},
+         {period_ms / 1000.0,
+          left_robo->topology()->trans_inv(T_be_left_target, left_joints)}},
+        30ms, 0, 0);
+    auto right_joints = right_robo->currentJointState();
+    right_robo->MoveJoint(
+        {{0, right_robo->topology()->trans_inv(T_be_right, right_joints)},
+         {period_ms / 1000.0,
+          right_robo->topology()->trans_inv(T_be_right_target, right_joints)}},
+        30ms, 0, 0);
+    left_robo->startTimer();
+    right_robo->startTimer();
+    double t3 = toc(); // ~ 70ms
+    // std::cout << "Start Move Joints time : " << (t3 - t2) * 1000 << " ms"
+    //           << std::endl;
+    if (i % 50 == 0) {
+      std::cout << "=====================" << std::endl;
+      std::cout << "Left Move Pose Relative: " << std::setprecision(3)
+                << (T_be_left_target * T_be_left.inverse())
+                       .block<3, 1>(0, 3)
+                       .transpose()
+                << std::endl;
+      std::cout << "Right Move Pose Relative: " << std::setprecision(3)
+                << (T_be_right_target * T_be_right.inverse())
+                       .block<3, 1>(0, 3)
+                       .transpose()
+                << std::endl;
+      std::cout << "Target center : "
+                << VirtualTCPTarget.block<3, 1>(0, 3).transpose()
+                << RotToRPY(VirtualTCPTarget.block<3, 3>(0, 0)).transpose() *
+                       180 / M_PI
+                << std::endl;
+      std::cout << "TCP move:" << x << ", " << y << ", " << z << ", " << rotx
+                << ", " << roty << ", " << rotz << std::endl;
+      std::cout << "=====================" << std::endl;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds((int)period_ms) +
+                                5ms);
+    t = toc(); //~210ms
+    // std::cout << "Sleep time: " << (t - t3) * 1000 << " ms" << std::endl;
+    // std::cout << "Total loop time : " << t * 1000 << " ms" << std::endl;
+  }
+}
 void printTrans(Eigen::Matrix4d &trans) {
   std::cout << "Position: " << trans.block<3, 1>(0, 3).transpose() << std::endl;
   std::cout << "RPY: "
@@ -446,6 +555,15 @@ int main() {
   //   return 0;
   auto optitrack = std::make_shared<OptiTrackRigidBodyCap>(
       std::vector<std::string>{"target_left", "target_right"}, "192.168.1.172");
+  std::this_thread::sleep_for(1s);
+  if (optitrack->IsTransformValid("target_left") &&
+      optitrack->IsTransformValid("target_right")) {
+    std::cout << "OptiTrack connected successfully." << std::endl;
+  } else {
+    std::cerr << "Failed to connect to OptiTrack or invalid transform."
+              << std::endl;
+    return -1;
+  }
   // * 1、计算此时的base误差
   // ! 当机器人发生碰撞或者已经夹取过，base的误差会增大
   calib_base_error(tree, optitrack);
@@ -455,7 +573,8 @@ int main() {
   // * 3、力控夹紧
   force_control_1d(tree, right_robo);
   // * 4、位置控制
-  dual_move(tree, optitrack, left_robo, right_robo);
+  //   dual_move(tree, optitrack, left_robo, right_robo);
+  dual_move_servo(tree, optitrack, left_robo, right_robo);
   // 固定左右TCP的相对位置进行移动
 
   server.join();

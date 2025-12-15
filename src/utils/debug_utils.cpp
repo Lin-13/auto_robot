@@ -7,7 +7,7 @@ double tictok_timer(int command) {
   } else {
     auto now = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> duration = now - last;
-    last = now;
+    // 不再重置 last，这样多次调用 toc() 返回的是累计时间
     return duration.count();
   }
 }

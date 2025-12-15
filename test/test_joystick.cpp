@@ -257,24 +257,34 @@ private:
     static std::vector<std::string> varNames = {"x",    "y",    "z",
                                                 "rotx", "roty", "rotz"};
     while (running_) {
-      std::string joint_moving, string_type = "string";
-      bool found_joint_moving =
-          client_->GetVariable("joint_moving", joint_moving, string_type);
-      // joint_moving == 1 的时候可以写入位置
-      if (found_joint_moving && std::stoi(joint_moving) == 1) {
-        for (const auto &varName : varNames) {
-          std::string value, type;
-          bool found = client_->GetVariable(varName, value, type);
-          if (position_.count(varName)) {
-            value = std::to_string(position_[varName]);
-            type = "d";
-            if (found) {
-              client_->SetVariable(varName, value);
-            }
+      // std::string joint_moving, string_type = "string";
+      // bool found_joint_moving =
+      //     client_->GetVariable("joint_moving", joint_moving, string_type);
+      // // joint_moving == 1 的时候可以写入位置
+      // if (found_joint_moving && std::stoi(joint_moving) == 1) {
+      //   for (const auto &varName : varNames) {
+      //     std::string value, type;
+      //     bool found = client_->GetVariable(varName, value, type);
+      //     if (position_.count(varName)) {
+      //       value = std::to_string(position_[varName]);
+      //       type = "d";
+      //       if (found) {
+      //         client_->SetVariable(varName, value);
+      //       }
+      //     }
+      //   }
+      // }
+      for (const auto &varName : varNames) {
+        std::string value, type;
+        bool found = client_->GetVariable(varName, value, type);
+        if (position_.count(varName)) {
+          value = std::to_string(position_[varName]);
+          type = "d";
+          if (found) {
+            client_->SetVariable(varName, value);
           }
         }
       }
-      client_->SetVariable("move_start_command", "1");
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
   }
