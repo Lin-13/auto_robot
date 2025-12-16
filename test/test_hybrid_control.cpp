@@ -139,6 +139,28 @@ void calib_base_error(std::shared_ptr<TransformTree> tree,
             << RotToRPY(right_base_error.block<3, 3>(0, 0)).transpose() * 180 /
                    M_PI
             << std::endl;
+  // 补偿
+  tree->get_trans("left_base") = left_base_actual;
+  tree->get_trans("right_base") = right_base_actual;
+  // 计算补偿后的误差
+  tree->update();
+  left_target = tree->get_global_transform("left_target");
+  right_target = tree->get_global_transform("right_target");
+  left_target_error = left_target_actual.inverse() * left_target;
+  std::cout << "==============After Compensation============\n";
+  std::cout << "Left target estimate error : "
+            << left_target_error.block<3, 1>(0, 3).norm() << "\n"
+            << "RPY:"
+            << RotToRPY(left_target_error.block<3, 3>(0, 0)).transpose() * 180 /
+                   M_PI
+            << std::endl;
+  right_target_error = right_target_actual.inverse() * right_target;
+  std::cout << "Right target estimate error : "
+            << right_target_error.block<3, 1>(0, 3).norm() << "\n"
+            << "RPY:"
+            << RotToRPY(right_target_error.block<3, 3>(0, 0)).transpose() *
+                   180 / M_PI
+            << std::endl;
   std::cout << "============================================" << std::endl;
   return;
 }
