@@ -86,7 +86,7 @@ sudo apt-get install -y \
 ```cmake
 # 修改为你的OpenCV安装路径，通常可以通过以下命令找到：
 # find /usr/local -name "OpenCVConfig.cmake" 或 find /usr -name "OpenCVConfig.cmake"
-set(OpenCV4_DIR "/home/lwx/local/lib/cmake/opencv4")  # 示例路径，需根据实际情况修改
+set(OpenCV4_DIR "/path/to/your/opencv4/cmake")  # 替换为实际的OpenCV4路径
 ```
 
 ### 3. 编译项目
