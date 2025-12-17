@@ -244,3 +244,7 @@ static const char *SERVER_HOST_right = "192.168.1.131";
 ## 联系方式
 
 如有问题或建议，请通过GitHub Issues联系。
+
+---
+
+*本文档由 GitHub Copilot 工具自动生成*
