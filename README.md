@@ -84,7 +84,9 @@ sudo apt-get install -y \
 编辑 `CMakeLists.txt` 中的路径配置：
 
 ```cmake
-set(OpenCV4_DIR "/path/to/opencv4")  # 修改为你的OpenCV路径
+# 修改为你的OpenCV安装路径，通常可以通过以下命令找到：
+# find /usr/local -name "OpenCVConfig.cmake" 或 find /usr -name "OpenCVConfig.cmake"
+set(OpenCV4_DIR "/home/lwx/local/lib/cmake/opencv4")  # 示例路径，需根据实际情况修改
 ```
 
 ### 3. 编译项目
@@ -132,10 +134,8 @@ make install
 ```bash
 cd scripts
 
-# 安装Python依赖
-uv sync  # 使用uv包管理器
-# 或
-pip install -r requirements.txt
+# 安装Python依赖（项目使用uv包管理器）
+uv sync
 
 # 运行上下文监控GUI
 python context_monitor_gui.py
@@ -236,10 +236,6 @@ static const char *SERVER_HOST_right = "192.168.1.131";
 - 检查机器人IP地址配置
 - 确保AUBO Robot SDK库正确链接
 - 验证传感器连接状态
-
-## 许可证
-
-请参考项目许可证文件（如存在）。
 
 ## 贡献
 
