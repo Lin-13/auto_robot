@@ -240,11 +240,11 @@ add_executable(HybrideControlTest test/test_hybrid_control.cpp)
 target_link_libraries(
     HybrideControlTest
     PRIVATE
+    context_monitor
     aubo
     utils
     optitrack
     ft_sensor
-    context_monitor
     protobuf::libprotobuf
 )
 install(
